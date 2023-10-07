@@ -9,8 +9,7 @@ from external import bench
 from external.vec_env import VecEnvWrapper
 from external.vec_env.dummy_vec_env import DummyVecEnv
 from external.vec_env.shmem_vec_env import ShmemVecEnv
-from external.vec_env.vec_normalize import \
-    VecNormalize as VecNormalize_
+from external.vec_env.vec_normalize import VecNormalize as VecNormalize_
 
 try:
     import dm_control2gym
@@ -31,21 +30,22 @@ except ImportError:
 def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
         if env_id.startswith("dm"):
-            _, domain, task = env_id.split('.')
+            _, domain, task = env_id.split(".")
             env = dm_control2gym.make(domain_name=domain, task_name=task)
         else:
             env = gym.make(env_id)
 
         env.seed(seed + rank)
 
-        if str(env.__class__.__name__).find('TimeLimit') >= 0:
+        if str(env.__class__.__name__).find("TimeLimit") >= 0:
             env = TimeLimitMask(env)
 
         if log_dir is not None:
             env = bench.Monitor(
                 env,
                 os.path.join(log_dir, str(rank)),
-                allow_early_resets=allow_early_resets)
+                allow_early_resets=allow_early_resets,
+            )
 
         if len(env.observation_space.shape) == 3:
             raise NotImplementedError
@@ -60,21 +60,23 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     return _thunk
 
 
-def make_vec_envs(env_name,
-                  seed,
-                  num_processes,
-                  gamma,
-                  log_dir,
-                  device,
-                  allow_early_resets,
-                  num_frame_stack=None):
+def make_vec_envs(
+    env_name,
+    seed,
+    num_processes,
+    gamma,
+    log_dir,
+    device,
+    allow_early_resets,
+    num_frame_stack=None,
+):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)
         for i in range(num_processes)
     ]
 
     if len(envs) > 1:
-        envs = ShmemVecEnv(envs, context='fork')
+        envs = ShmemVecEnv(envs, context="fork")
     else:
         envs = DummyVecEnv(envs)
 
@@ -99,7 +101,7 @@ class TimeLimitMask(gym.Wrapper):
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
         if done and self.env._max_episode_steps == self.env._elapsed_steps:
-            info['bad_transition'] = True
+            info["bad_transition"] = True
 
         return obs, rew, done, info
 
@@ -134,11 +136,10 @@ class TransposeImage(TransposeObs):
         obs_shape = self.observation_space.shape
         self.observation_space = Box(
             self.observation_space.low[0, 0, 0],
-            self.observation_space.high[0, 0, 0], [
-                obs_shape[self.op[0]], obs_shape[self.op[1]],
-                obs_shape[self.op[2]]
-            ],
-            dtype=self.observation_space.dtype)
+            self.observation_space.high[0, 0, 0],
+            [obs_shape[self.op[0]], obs_shape[self.op[1]], obs_shape[self.op[2]]],
+            dtype=self.observation_space.dtype,
+        )
 
     def observation(self, ob):
         return ob.transpose(self.op[0], self.op[1], self.op[2])
@@ -179,9 +180,11 @@ class VecNormalize(VecNormalize_):
         if self.ob_rms:
             if self.training and update:
                 self.ob_rms.update(obs)
-            obs = np.clip((obs - self.ob_rms.mean) /
-                          np.sqrt(self.ob_rms.var + self.epsilon),
-                          -self.clipob, self.clipob)
+            obs = np.clip(
+                (obs - self.ob_rms.mean) / np.sqrt(self.ob_rms.var + self.epsilon),
+                -self.clipob,
+                self.clipob,
+            )
             return obs
         else:
             return obs
@@ -207,22 +210,23 @@ class VecPyTorchFrameStack(VecEnvWrapper):
         high = np.repeat(wos.high, self.nstack, axis=0)
 
         if device is None:
-            device = torch.device('cpu')
-        self.stacked_obs = torch.zeros((venv.num_envs, ) +
-                                       low.shape).to(device)
+            device = torch.device("cpu")
+        self.stacked_obs = torch.zeros((venv.num_envs,) + low.shape).to(device)
 
         observation_space = gym.spaces.Box(
-            low=low, high=high, dtype=venv.observation_space.dtype)
+            low=low, high=high, dtype=venv.observation_space.dtype
+        )
         VecEnvWrapper.__init__(self, venv, observation_space=observation_space)
 
     def step_wait(self):
         obs, rews, news, infos = self.venv.step_wait()
-        self.stacked_obs[:, :-self.shape_dim0] = \
-            self.stacked_obs[:, self.shape_dim0:].clone()
+        self.stacked_obs[:, : -self.shape_dim0] = self.stacked_obs[
+            :, self.shape_dim0 :
+        ].clone()
         for (i, new) in enumerate(news):
             if new:
                 self.stacked_obs[i] = 0
-        self.stacked_obs[:, -self.shape_dim0:] = obs
+        self.stacked_obs[:, -self.shape_dim0 :] = obs
         return self.stacked_obs, rews, news, infos
 
     def reset(self):
@@ -231,7 +235,7 @@ class VecPyTorchFrameStack(VecEnvWrapper):
             self.stacked_obs = torch.zeros(self.stacked_obs.shape)
         else:
             self.stacked_obs.zero_()
-        self.stacked_obs[:, -self.shape_dim0:] = obs
+        self.stacked_obs[:, -self.shape_dim0 :] = obs
         return self.stacked_obs
 
     def close(self):

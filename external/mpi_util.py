@@ -1,5 +1,6 @@
-from collections import defaultdict
 import warnings
+from collections import defaultdict
+
 
 def mpi_weighted_mean(comm, local_name2valcount):
     """
@@ -17,11 +18,14 @@ def mpi_weighted_mean(comm, local_name2valcount):
                     val = float(val)
                 except ValueError:
                     if comm.rank == 0:
-                        warnings.warn('WARNING: tried to compute mean on non-float {}={}'.format(name, val))
+                        warnings.warn(
+                            "WARNING: tried to compute mean on non-float {}={}".format(
+                                name, val
+                            )
+                        )
                 else:
                     name2sum[name] += val * count
                     name2count[name] += count
-        return {name : name2sum[name] / name2count[name] for name in name2sum}
+        return {name: name2sum[name] / name2count[name] for name in name2sum}
     else:
         return {}
-
