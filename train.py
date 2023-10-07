@@ -1,21 +1,15 @@
-import copy
-import glob
 import os
 import time
 from collections import deque
 
-import gym
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 
-import envs
-from algo import PPO, utils
+from algo import utils
 from algo.arguments import get_args
 from algo.envs import make_vec_envs
 from algo.model import Policy
+from algo.ppo import PPO
 from algo.storage import RolloutStorage
 from algo.utils import get_vec_normalize
 from evaluation import evaluate
@@ -182,9 +176,6 @@ def main():
                     np.median(episode_rewards),
                     np.min(episode_rewards),
                     np.max(episode_rewards),
-                    dist_entropy,
-                    value_loss,
-                    action_loss,
                 )
             )
 

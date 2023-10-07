@@ -1,8 +1,5 @@
-import math
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from algo.utils import AddBias, init
 
@@ -15,6 +12,8 @@ Modify standard PyTorch distributions so they are compatible with this code.
 #
 
 # Categorical
+
+
 class FixedCategorical(torch.distributions.Categorical):
     def sample(self):
         return super().sample().unsqueeze(-1)
@@ -36,9 +35,6 @@ class FixedCategorical(torch.distributions.Categorical):
 class FixedNormal(torch.distributions.Normal):
     def log_probs(self, actions):
         return super().log_prob(actions).sum(-1, keepdim=True)
-
-    def entrop(self):
-        return super.entropy().sum(-1)
 
     def mode(self):
         return self.mean

@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from algo.distributions import Bernoulli, Categorical, DiagGaussian
 from algo.utils import init
@@ -61,8 +60,6 @@ class Policy(nn.Module):
             action = dist.sample()
 
         action_log_probs = dist.log_probs(action)
-        dist_entropy = dist.entropy().mean()
-
         return value, action, action_log_probs, rnn_hxs
 
     def get_value(self, inputs, rnn_hxs, masks):

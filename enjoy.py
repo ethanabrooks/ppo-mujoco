@@ -4,11 +4,9 @@ import os
 # workaround to unpickle olf model files
 import sys
 
-import numpy as np
 import torch
 
-import envs
-from algo.envs import VecPyTorch, make_vec_envs
+from algo.envs import make_vec_envs
 from algo.utils import get_render_func, get_vec_normalize
 
 sys.path.append("algo")
@@ -134,7 +132,7 @@ else:
             if torsoId > -1:
                 distance = 5
                 yaw = 0
-                humanPos, humanOrn = p.getBasePositionAndOrientation(torsoId)
+                humanPos, _ = p.getBasePositionAndOrientation(torsoId)
                 p.resetDebugVisualizerCamera(distance, yaw, -20, humanPos)
 
         if render_func is not None:

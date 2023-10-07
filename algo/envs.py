@@ -16,16 +16,6 @@ try:
 except ImportError:
     pass
 
-try:
-    import roboschool
-except ImportError:
-    pass
-
-try:
-    import pybullet_envs
-except ImportError:
-    pass
-
 
 def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
@@ -107,14 +97,6 @@ class TimeLimitMask(gym.Wrapper):
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
-
-
-# Can be used to test recurrent policies for Reacher-v2
-class MaskGoal(gym.ObservationWrapper):
-    def observation(self, observation):
-        if self.env._elapsed_steps > 0:
-            observation[-2:] = 0
-        return observation
 
 
 class TransposeObs(gym.ObservationWrapper):

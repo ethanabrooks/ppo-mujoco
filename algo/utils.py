@@ -1,7 +1,6 @@
 import glob
 import os
 
-import torch
 import torch.nn as nn
 
 from algo.envs import VecNormalize
