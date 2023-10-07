@@ -26,7 +26,6 @@ def train(
     gae_lambda: float,
     gamma: float,
     load_path: str,
-    log_dir: str,
     log_interval: int,
     lr: float,
     num_processes: int,
@@ -41,12 +40,6 @@ def train(
 ):
     torch.manual_seed(seed)
 
-    log_dir = os.path.expanduser(log_dir)
-    eval_log_dir = log_dir + "_eval"
-    utils.cleanup_log_dir(log_dir)
-    if eval_interval is not None:
-        utils.cleanup_log_dir(eval_log_dir)
-
     torch.set_num_threads(1)
     device = torch.device("cpu")
 
@@ -55,7 +48,7 @@ def train(
         seed,
         num_processes,
         gamma,
-        log_dir,
+        None,
         device,
         False,
         dummy_vec_env=dummy_vec_env,
@@ -94,7 +87,6 @@ def train(
     start = time.time()
     num_updates = int(num_env_steps) // num_steps // num_processes
     for j in range(num_updates):
-
         if not disable_linear_lr_decay:
             # decrease learning rate linearly
             utils.update_linear_schedule(agent.optimizer, j, num_updates, lr)
@@ -196,6 +188,6 @@ def train(
                 env_name,
                 seed,
                 num_processes,
-                eval_log_dir,
+                None,
                 device,
             )

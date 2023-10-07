@@ -31,12 +31,11 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
         if str(env.__class__.__name__).find("TimeLimit") >= 0:
             env = TimeLimitMask(env)
 
-        if log_dir is not None:
-            env = bench.Monitor(
-                env,
-                os.path.join(log_dir, str(rank)),
-                allow_early_resets=allow_early_resets,
-            )
+        env = bench.Monitor(
+            env,
+            None if log_dir is None else os.path.join(log_dir, str(rank)),
+            allow_early_resets=allow_early_resets,
+        )
 
         if len(env.observation_space.shape) == 3:
             raise NotImplementedError
