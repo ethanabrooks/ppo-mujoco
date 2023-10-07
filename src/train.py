@@ -175,6 +175,13 @@ def train(
                     np.max(episode_rewards),
                 )
             )
+            log = dict(
+                updates=j,
+                mean_reward=np.mean(episode_rewards),
+                fps=int(total_num_steps / (end - start)),
+            )
+            if run is not None:
+                run.log(log, step=total_num_steps)
 
         if (
             eval_interval is not None
