@@ -24,7 +24,7 @@ class PusherEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl)
 
     def viewer_setup(self):
-        self.viewer.cam.trackbodyid = -1
+        self.viewer.cam.trackbodyid = -1  # noqa: Vulture
         self.viewer.cam.distance = 4.0
 
     def reset_model(self):

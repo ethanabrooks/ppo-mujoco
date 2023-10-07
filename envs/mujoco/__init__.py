@@ -14,3 +14,19 @@ from .striker import StrikerEnv
 from .swimmer import SwimmerEnv
 from .thrower import ThrowerEnv
 from .walker2d import Walker2dEnv
+
+# whitelist
+AntEnv
+HalfCheetahEnv
+HopperEnv
+HumanoidEnv
+HumanoidStandupEnv
+InvertedDoublePendulumEnv
+InvertedPendulumEnv
+MujocoEnv
+PusherEnv
+ReacherEnv
+StrikerEnv
+SwimmerEnv
+ThrowerEnv
+Walker2dEnv

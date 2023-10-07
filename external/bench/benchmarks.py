@@ -1,7 +1,4 @@
-import os
 import re
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 _BENCHMARKS = []
 
@@ -19,32 +16,6 @@ def register_benchmark(benchmark):
             if "desc" not in t:
                 t["desc"] = remove_version_re.sub("", t.get("env_id", t.get("id")))
     _BENCHMARKS.append(benchmark)
-
-
-def list_benchmarks():
-    return [b["name"] for b in _BENCHMARKS]
-
-
-def get_benchmark(benchmark_name):
-    for b in _BENCHMARKS:
-        if b["name"] == benchmark_name:
-            return b
-    raise ValueError(
-        "%s not found! Known benchmarks: %s" % (benchmark_name, list_benchmarks())
-    )
-
-
-def get_task(benchmark, env_id):
-    """Get a task by env_id. Return None if the benchmark doesn't have the env"""
-    return next(filter(lambda task: task["env_id"] == env_id, benchmark["tasks"]), None)
-
-
-def find_task_for_env_id_in_any_benchmark(env_id):
-    for bm in _BENCHMARKS:
-        for task in bm["tasks"]:
-            if task["env_id"] == env_id:
-                return bm, task
-    return None, None
 
 
 # MuJoCo

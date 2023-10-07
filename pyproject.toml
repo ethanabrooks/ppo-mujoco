@@ -37,4 +37,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.vulture]
 ignore_decorators = ["@tree.command", "@tree.subcommand"]
 ignore_names = ['daemon']
-paths = ["src"]
+paths = ["."]

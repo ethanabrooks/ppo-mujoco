@@ -39,7 +39,6 @@ class Monitor(Wrapper):
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_times = []
-        self.total_steps = 0
         self.current_reset_info = (
             {}
         )  # extra info about the current episode, that was passed in during reset()
@@ -91,23 +90,9 @@ class Monitor(Wrapper):
             if isinstance(info, dict):
                 info["episode"] = epinfo
 
-        self.total_steps += 1
-
     def close(self):
         if self.f is not None:
             self.f.close()
-
-    def get_total_steps(self):
-        return self.total_steps
-
-    def get_episode_rewards(self):
-        return self.episode_rewards
-
-    def get_episode_lengths(self):
-        return self.episode_lengths
-
-    def get_episode_times(self):
-        return self.episode_times
 
 
 class LoadMonitorResultsError(Exception):

@@ -43,7 +43,7 @@ class HopperEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return self._get_obs()
 
     def viewer_setup(self):
-        self.viewer.cam.trackbodyid = 2
-        self.viewer.cam.distance = self.model.stat.extent * 0.75
-        self.viewer.cam.lookat[2] = 1.15
-        self.viewer.cam.elevation = -20
+        self.viewer.cam.trackbodyid = 2  # noqa: Vulture
+        self.viewer.cam.distance = self.model.stat.extent * 0.75  # noqa: Vulture
+        self.viewer.cam.lookat[2] = 1.15  # noqa: Vulture
+        self.viewer.cam.elevation = -20  # noqa: Vulture

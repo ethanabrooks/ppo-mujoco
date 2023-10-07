@@ -38,7 +38,7 @@ class VecEnv(ABC):
     closed = False
     viewer = None
 
-    metadata = {"render.modes": ["human", "rgb_array"]}
+    metadata = {"render.modes": ["human", "rgb_array"]}  # noqa: Vulture
 
     def __init__(self, num_envs, observation_space, action_space):
         self.num_envs = num_envs

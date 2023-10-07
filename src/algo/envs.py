@@ -60,7 +60,7 @@ def make_vec_envs(
     device,
     allow_early_resets,
     num_frame_stack=None,
-    record_video=True,
+    record_video=False,
 ):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)

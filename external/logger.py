@@ -14,8 +14,6 @@ INFO = 20
 WARN = 30
 ERROR = 40
 
-DISABLED = 50
-
 
 class KVWriter(object):
     def writekvs(self, kvs):
@@ -224,23 +222,11 @@ def logkv_mean(key, val):
     get_current().logkv_mean(key, val)
 
 
-def logkvs(d):
-    """
-    Log a dictionary of key-value pairs
-    """
-    for (k, v) in d.items():
-        logkv(k, v)
-
-
 def dumpkvs():
     """
     Write all of the diagnostics from the current iteration
     """
     return get_current().dumpkvs()
-
-
-def getkvs():
-    return get_current().name2val
 
 
 def log(*args, level=INFO):
@@ -283,37 +269,6 @@ def get_dir():
     will be None if there is no output directory (i.e., if you didn't call start)
     """
     return get_current().get_dir()
-
-
-record_tabular = logkv
-dump_tabular = dumpkvs
-
-
-@contextmanager
-def profile_kv(scopename):
-    logkey = "wait_" + scopename
-    tstart = time.time()
-    try:
-        yield
-    finally:
-        get_current().name2val[logkey] += time.time() - tstart
-
-
-def profile(n):
-    """
-    Usage:
-    @profile("my_func")
-    def my_func(): code
-    """
-
-    def decorator_with_name(func):
-        def func_wrapper(*args, **kwargs):
-            with profile_kv(n):
-                return func(*args, **kwargs)
-
-        return func_wrapper
-
-    return decorator_with_name
 
 
 # ================================================================
@@ -516,44 +471,6 @@ def read_csv(fname):
     import pandas
 
     return pandas.read_csv(fname, index_col=None, comment="#")
-
-
-def read_tb(path):
-    """
-    path : a tensorboard file OR a directory, where we will find all TB files
-           of the form events.*
-    """
-    from glob import glob
-
-    import numpy as np
-    import pandas
-    import tensorflow as tf
-
-    if osp.isdir(path):
-        fnames = glob(osp.join(path, "events.*"))
-    elif osp.basename(path).startswith("events."):
-        fnames = [path]
-    else:
-        raise NotImplementedError(
-            "Expected tensorboard file or directory containing them. Got %s" % path
-        )
-    tag2pairs = defaultdict(list)
-    maxstep = 0
-    for fname in fnames:
-        for summary in tf.train.summary_iterator(fname):
-            if summary.step > 0:
-                for v in summary.summary.value:
-                    pair = (summary.step, v.simple_value)
-                    tag2pairs[v.tag].append(pair)
-                maxstep = max(summary.step, maxstep)
-    data = np.empty((maxstep, len(tag2pairs)))
-    data[:] = np.nan
-    tags = sorted(tag2pairs.keys())
-    for (colidx, tag) in enumerate(tags):
-        pairs = tag2pairs[tag]
-        for (step, value) in pairs:
-            data[step - 1, colidx] = value
-    return pandas.DataFrame(data, columns=tags)
 
 
 if __name__ == "__main__":
