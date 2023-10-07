@@ -1,0 +1,25 @@
+disable_gae: false
+disable_linear_lr_decay: false
+disable_proper_time_limits: false
+env_name: "HalfCheetah-v2"
+eval_interval: null
+gae_lambda: 0.95
+gamma: 0.99
+log_dir: "./logs/"
+log_interval: 1
+lr: 3e-4
+num_env_steps: 1000000
+num_processes: 1
+num_steps: 2048
+ppo_params:
+  clip_param: 0.2
+  entropy_coef: 0
+  eps: 1e-5
+  max_grad_norm: 0.5
+  num_mini_batch: 32
+  ppo_epoch: 10
+  value_loss_coef: 0.5
+recurrent_policy: false
+save_dir: "./trained_models/"
+save_interval: 100
+seed: 1

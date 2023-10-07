@@ -1,12 +1,13 @@
 import os
 import time
 from collections import deque
+from typing import Optional
 
 import numpy as np
 import torch
+from wandb.sdk.wandb_run import Run
 
 from algo import utils
-from algo.arguments import get_args
 from algo.envs import make_vec_envs
 from algo.model import Policy
 from algo.ppo import PPO
@@ -15,64 +16,70 @@ from algo.utils import get_vec_normalize
 from evaluation import evaluate
 
 
-def main():
-    args = get_args()
+def train(
+    disable_gae: bool,
+    disable_linear_lr_decay: bool,
+    disable_proper_time_limits: bool,
+    dummy_vec_env: bool,
+    env_name: str,
+    eval_interval: int,
+    gae_lambda: float,
+    gamma: float,
+    load_path: str,
+    log_dir: str,
+    log_interval: int,
+    lr: float,
+    num_processes: int,
+    num_steps: int,
+    num_env_steps: int,
+    ppo_params: dict,
+    recurrent_policy: bool,
+    run: Optional[Run],
+    save_dir: str,
+    save_interval: int,
+    seed: int,
+):
+    torch.manual_seed(seed)
 
-    torch.manual_seed(args.seed)
-
-    log_dir = os.path.expanduser(args.log_dir)
+    log_dir = os.path.expanduser(log_dir)
     eval_log_dir = log_dir + "_eval"
     utils.cleanup_log_dir(log_dir)
-    if args.eval_interval is not None:
+    if eval_interval is not None:
         utils.cleanup_log_dir(eval_log_dir)
 
     torch.set_num_threads(1)
     device = torch.device("cpu")
 
     envs = make_vec_envs(
-        args.env_name,
-        args.seed,
-        args.num_processes,
-        args.gamma,
-        args.log_dir,
+        env_name,
+        seed,
+        num_processes,
+        gamma,
+        log_dir,
         device,
         False,
+        dummy_vec_env=dummy_vec_env,
     )
 
-    if args.load_dir is None:
+    if load_path is None:
         actor_critic = Policy(
             envs.observation_space.shape,
             envs.action_space,
-            base_kwargs={"recurrent": args.recurrent_policy},
+            base_kwargs={"recurrent": recurrent_policy},
         )
         actor_critic.to(device)
     else:
-        load_path = (
-            args.load_dir
-            if args.load_dir.endswith(".pt")
-            else os.path.join(args.load_dir, args.env_name + ".pt")
-        )
         actor_critic, ob_rms = torch.load(load_path)
         vec_norm = get_vec_normalize(envs)
         if vec_norm is not None:
             vec_norm.eval()
             vec_norm.ob_rms = ob_rms
 
-    agent = PPO(
-        actor_critic,
-        args.clip_param,
-        args.ppo_epoch,
-        args.num_mini_batch,
-        args.value_loss_coef,
-        args.entropy_coef,
-        lr=args.lr,
-        eps=args.eps,
-        max_grad_norm=args.max_grad_norm,
-    )
+    agent = PPO(actor_critic=actor_critic, lr=lr, **ppo_params)
 
     rollouts = RolloutStorage(
-        args.num_steps,
-        args.num_processes,
+        num_steps,
+        num_processes,
         envs.observation_space.shape,
         envs.action_space,
         actor_critic.recurrent_hidden_state_size,
@@ -85,14 +92,14 @@ def main():
     episode_rewards = deque(maxlen=10)
 
     start = time.time()
-    num_updates = int(args.num_env_steps) // args.num_steps // args.num_processes
+    num_updates = int(num_env_steps) // num_steps // num_processes
     for j in range(num_updates):
 
-        if not args.disable_linear_lr_decay:
+        if not disable_linear_lr_decay:
             # decrease learning rate linearly
-            utils.update_linear_schedule(agent.optimizer, j, num_updates, args.lr)
+            utils.update_linear_schedule(agent.optimizer, j, num_updates, lr)
 
-        for step in range(args.num_steps):
+        for step in range(num_steps):
             # Sample actions
             with torch.no_grad():
                 (
@@ -138,10 +145,10 @@ def main():
 
         rollouts.compute_returns(
             next_value,
-            not args.disable_gae,
-            args.gamma,
-            args.gae_lambda,
-            not args.disable_proper_time_limits,
+            not disable_gae,
+            gamma,
+            gae_lambda,
+            not disable_proper_time_limits,
         )
 
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
@@ -149,10 +156,8 @@ def main():
         rollouts.after_update()
 
         # save for every interval-th episode or for the last epoch
-        if (
-            j % args.save_interval == 0 or j == num_updates - 1
-        ) and args.save_dir != "":
-            save_path = args.save_dir
+        if (j % save_interval == 0 or j == num_updates - 1) and save_dir != "":
+            save_path = save_dir
             try:
                 os.makedirs(save_path)
             except OSError:
@@ -160,11 +165,11 @@ def main():
 
             torch.save(
                 [actor_critic, getattr(utils.get_vec_normalize(envs), "ob_rms", None)],
-                os.path.join(save_path, args.env_name + ".pt"),
+                os.path.join(save_path, env_name + ".pt"),
             )
 
-        if j % args.log_interval == 0 and len(episode_rewards) > 1:
-            total_num_steps = (j + 1) * args.num_processes * args.num_steps
+        if j % log_interval == 0 and len(episode_rewards) > 1:
+            total_num_steps = (j + 1) * num_processes * num_steps
             end = time.time()
             print(
                 "Updates {}, num timesteps {}, FPS {} \n Last {} training episodes: mean/median reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}\n".format(
@@ -180,21 +185,17 @@ def main():
             )
 
         if (
-            args.eval_interval is not None
+            eval_interval is not None
             and len(episode_rewards) > 1
-            and j % args.eval_interval == 0
+            and j % eval_interval == 0
         ):
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(
                 actor_critic,
                 ob_rms,
-                args.env_name,
-                args.seed,
-                args.num_processes,
+                env_name,
+                seed,
+                num_processes,
                 eval_log_dir,
                 device,
             )
-
-
-if __name__ == "__main__":
-    main()

@@ -59,6 +59,7 @@ def make_vec_envs(
     log_dir,
     device,
     allow_early_resets,
+    dummy_vec_env: bool,
     num_frame_stack=None,
     record_video=False,
 ):
@@ -67,7 +68,7 @@ def make_vec_envs(
         for i in range(num_processes)
     ]
 
-    if len(envs) > 1:
+    if dummy_vec_env or len(envs) > 1:
         envs = ShmemVecEnv(envs, context="fork")
     else:
         envs = DummyVecEnv(envs)
