@@ -10,6 +10,7 @@ from external.vec_env import VecEnvWrapper
 from external.vec_env.dummy_vec_env import DummyVecEnv
 from external.vec_env.shmem_vec_env import ShmemVecEnv
 from external.vec_env.vec_normalize import VecNormalize as VecNormalize_
+from external.vec_env.vec_video_recorder import VecVideoRecorder
 
 try:
     import dm_control2gym
@@ -59,6 +60,7 @@ def make_vec_envs(
     device,
     allow_early_resets,
     num_frame_stack=None,
+    record_video=False,
 ):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)
@@ -82,6 +84,13 @@ def make_vec_envs(
         envs = VecPyTorchFrameStack(envs, num_frame_stack, device)
     elif len(envs.observation_space.shape) == 3:
         envs = VecPyTorchFrameStack(envs, 4, device)
+    if record_video:
+        envs = VecVideoRecorder(
+            envs,
+            directory=os.path.join(log_dir, "videos"),
+            record_video_trigger=lambda x: x % 1000000 == 0,
+            video_length=100,
+        )
 
     return envs
 

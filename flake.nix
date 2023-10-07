@@ -104,9 +104,10 @@
         LD_LIBRARY_PATH = with pkgs; "$LD_LIBRARY_PATH:${mesa.osmesa}/lib:${gcc-unwrapped.lib}/lib:${mujoco}/bin";
         buildInputs = with pkgs; [
           alejandra
+          ffmpeg
+          myNixgl.nixGLNvidia
           poetry
           poetryEnv
-          myNixgl.nixGLNvidia
         ];
         PYTHONBREAKPOINT = "ipdb.set_trace";
         shellHook = ''
