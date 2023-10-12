@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 import gym
 import numpy as np
@@ -12,19 +11,10 @@ from external.vec_env.subproc_vec_env import SubprocVecEnv
 from external.vec_env.vec_normalize import VecNormalize as VecNormalize_
 from external.vec_env.vec_video_recorder import VecVideoRecorder
 
-try:
-    import dm_control2gym
-except ImportError:
-    pass
-
 
 def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
-        if env_id.startswith("dm"):
-            _, domain, task = env_id.split(".")
-            env = dm_control2gym.make(domain_name=domain, task_name=task)
-        else:
-            env = gym.make(env_id)
+        env = gym.make(env_id)
 
         env.seed(seed + rank)
 
@@ -59,7 +49,6 @@ def make_vec_envs(
     device: torch.device,
     allow_early_resets: bool,
     dummy_vec_env: bool,
-    num_frame_stack: Optional[int] = None,
     record_video: bool = False,
 ):
     envs = [
@@ -80,10 +69,6 @@ def make_vec_envs(
 
     envs = VecPyTorch(envs, device)
 
-    if num_frame_stack is not None:
-        envs = VecPyTorchFrameStack(envs, num_frame_stack, device)
-    elif len(envs.observation_space.shape) == 3:
-        envs = VecPyTorchFrameStack(envs, 4, device)
     if record_video:
         envs = VecVideoRecorder(
             envs,
@@ -180,45 +165,3 @@ class VecNormalize(VecNormalize_):
 
     def eval(self):
         self.training = False
-
-
-# Derived from
-# https://github.com/openai/baselines/blob/master/baselines/common/vec_env/vec_frame_stack.py
-class VecPyTorchFrameStack(gym.Wrapper):
-    def __init__(self, venv: SubprocVecEnv, nstack: int, device: torch.device = None):
-        self.venv = venv
-        self.nstack = nstack
-
-        wos = venv.observation_space  # wrapped ob space
-        self.shape_dim0 = wos.shape[0]
-
-        low = np.repeat(wos.low, self.nstack, axis=0)
-
-        if device is None:
-            device = torch.device("cpu")
-        self.stacked_obs = torch.zeros((venv.num_envs,) + low.shape).to(device)
-
-        super().__init__(venv)
-
-    def step(self, action: torch.Tensor):
-        obs, rews, news, infos = self.venv.step(action)
-        self.stacked_obs[:, : -self.shape_dim0] = self.stacked_obs[
-            :, self.shape_dim0 :
-        ].clone()
-        for i, new in enumerate(news):
-            if new:
-                self.stacked_obs[i] = 0
-        self.stacked_obs[:, -self.shape_dim0 :] = obs
-        return self.stacked_obs, rews, news, infos
-
-    def reset(self):
-        obs = self.venv.reset()
-        if torch.backends.cudnn.deterministic:
-            self.stacked_obs = torch.zeros(self.stacked_obs.shape)
-        else:
-            self.stacked_obs.zero_()
-        self.stacked_obs[:, -self.shape_dim0 :] = obs
-        return self.stacked_obs
-
-    def close(self):
-        self.venv.close()
