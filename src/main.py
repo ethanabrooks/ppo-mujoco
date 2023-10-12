@@ -4,7 +4,6 @@ import urllib
 from pathlib import Path
 
 import tomli
-import wandb
 from dollar_lambda import CommandTree, argument, option
 from git import Repo
 from omegaconf import DictConfig, OmegaConf
@@ -12,6 +11,7 @@ from ray import tune
 from ray.air.integrations.wandb import setup_wandb
 from rich import print
 
+import wandb
 from param_space import param_space
 from train import train
 
@@ -49,7 +49,11 @@ def get_config(config_path: str):
     config_path = config_path.with_suffix(".yml")
     config = OmegaConf.load(config_path)
     check_alphabetical_order(config, str(config_path))
-    resolved = OmegaConf.to_container(config, resolve=True)
+    base_config_path = config_path.with_name("base.yml")
+    base_config = OmegaConf.load(base_config_path)
+    check_alphabetical_order(base_config, str(base_config_path))
+    merged = OmegaConf.merge(base_config, config)
+    resolved = OmegaConf.to_container(merged, resolve=True)
     return resolved
 
 
@@ -77,7 +81,7 @@ def get_relative_git_rev(target_commit: str):
     return f"{str(target_commit)[:7]}~{num_commits}"
 
 
-parsers = dict(config=option("config", default="config"))
+parsers = dict(config=option("config", default="half-cheetah"))
 
 
 @tree.subcommand(parsers=dict(name=argument("name"), **parsers))
