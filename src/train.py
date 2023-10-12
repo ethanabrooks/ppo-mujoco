@@ -44,20 +44,20 @@ def train(
     device = torch.device("cpu")
 
     envs = make_vec_envs(
-        env_name,
-        seed,
-        num_processes,
-        gamma,
-        None,
-        device,
-        False,
+        allow_early_resets=False,
+        device=device,
         dummy_vec_env=dummy_vec_env,
+        env_name=env_name,
+        gamma=gamma,
+        log_dir=None,
+        num_processes=num_processes,
+        seed=seed,
     )
 
     if load_path is None:
         actor_critic = Policy(
-            envs.observation_space.shape,
-            envs.action_space,
+            obs_shape=envs.observation_space.shape,
+            action_space=envs.action_space,
             base_kwargs={"recurrent": recurrent_policy},
         )
         actor_critic.to(device)
@@ -71,11 +71,11 @@ def train(
     agent = PPO(actor_critic=actor_critic, lr=lr, **ppo_params)
 
     rollouts = RolloutStorage(
-        num_steps,
-        num_processes,
-        envs.observation_space.shape,
-        envs.action_space,
-        actor_critic.recurrent_hidden_state_size,
+        num_steps=num_steps,
+        num_processes=num_processes,
+        obs_shape=envs.observation_space.shape,
+        action_space=envs.action_space,
+        recurrent_hidden_state_size=actor_critic.recurrent_hidden_state_size,
     )
 
     obs = envs.reset()
@@ -100,14 +100,15 @@ def train(
                     action_log_prob,
                     recurrent_hidden_states,
                 ) = actor_critic.act(
-                    rollouts.obs[step],
-                    rollouts.recurrent_hidden_states[step],
-                    rollouts.masks[step],
+                    inputs=rollouts.obs[step],
+                    rnn_hxs=rollouts.recurrent_hidden_states[step],
+                    masks=rollouts.masks[step],
                 )
 
             # Obser reward and next obs
             obs, reward, done, infos = envs.step(action)
 
+            info: dict
             for info in infos:
                 if "episode" in info.keys():
                     episode_rewards.append(info["episode"]["r"])
@@ -118,14 +119,14 @@ def train(
                 [[0.0] if "bad_transition" in info.keys() else [1.0] for info in infos]
             )
             rollouts.insert(
-                obs,
-                recurrent_hidden_states,
-                action,
-                action_log_prob,
-                value,
-                reward,
-                masks,
-                bad_masks,
+                obs=obs,
+                recurrent_hidden_states=recurrent_hidden_states,
+                actions=action,
+                action_log_probs=action_log_prob,
+                value_preds=value,
+                rewards=reward,
+                masks=masks,
+                bad_masks=bad_masks,
             )
 
         with torch.no_grad():
@@ -179,6 +180,9 @@ def train(
                 updates=j,
                 mean_reward=np.mean(episode_rewards),
                 fps=int(total_num_steps / (end - start)),
+                value_loss=value_loss,
+                action_loss=action_loss,
+                dist_entropy=dist_entropy,
             )
             if run is not None:
                 run.log(log, step=total_num_steps)
@@ -190,11 +194,11 @@ def train(
         ):
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(
-                actor_critic,
-                ob_rms,
-                env_name,
-                seed,
-                num_processes,
-                None,
-                device,
+                actor_critic=actor_critic,
+                ob_rms=ob_rms,
+                env_name=env_name,
+                seed=seed,
+                num_processes=num_processes,
+                eval_log_dir=None,
+                device=device,
             )

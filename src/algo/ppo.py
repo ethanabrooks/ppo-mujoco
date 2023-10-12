@@ -1,23 +1,26 @@
+from typing import Optional
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+from algo.model import Policy
+from algo.storage import RolloutStorage
 
 
 class PPO:
     def __init__(
         self,
-        actor_critic,
-        clip_param,
-        ppo_epoch,
-        num_mini_batch,
-        value_loss_coef,
-        entropy_coef,
-        lr=None,
-        eps=None,
-        max_grad_norm=None,
-        use_clipped_value_loss=True,
+        actor_critic: Policy,
+        clip_param: float,
+        ppo_epoch: int,
+        num_mini_batch: int,
+        value_loss_coef: float,
+        entropy_coef: float,
+        lr: float,
+        eps: Optional[float] = None,
+        max_grad_norm: Optional[float] = None,
+        use_clipped_value_loss: bool = True,
     ):
-
         self.actor_critic = actor_critic
 
         self.clip_param = clip_param
@@ -32,7 +35,7 @@ class PPO:
 
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
-    def update(self, rollouts):
+    def update(self, rollouts: RolloutStorage):
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
 

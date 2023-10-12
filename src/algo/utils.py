@@ -1,6 +1,8 @@
+import torch
 import torch.nn as nn
 
 from algo.envs import VecNormalize
+from torch.optim.optimizer import Optimizer
 
 
 # Get a render function
@@ -26,7 +28,7 @@ def get_vec_normalize(venv):
 
 # Necessary for my KFAC implementation.
 class AddBias(nn.Module):
-    def __init__(self, bias):
+    def __init__(self, bias: torch.Tensor):
         super(AddBias, self).__init__()
         self._bias = nn.Parameter(bias.unsqueeze(1))
 
@@ -39,14 +41,16 @@ class AddBias(nn.Module):
         return x + bias
 
 
-def update_linear_schedule(optimizer, epoch, total_num_epochs, initial_lr):
+def update_linear_schedule(
+    optimizer: Optimizer, epoch: int, total_num_epochs: int, initial_lr: float
+):
     """Decreases the learning rate linearly"""
     lr = initial_lr - (initial_lr * (epoch / float(total_num_epochs)))
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
 
 
-def init(module, weight_init, bias_init, gain=1):
+def init(module: nn.Linear, weight_init: float, bias_init: float, gain: float = 1):
     weight_init(module.weight.data, gain=gain)
     bias_init(module.bias.data)
     return module

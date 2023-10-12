@@ -1,3 +1,5 @@
+from typing import Optional
+from gym import Space
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,12 +9,18 @@ from algo.utils import init
 
 
 class Flatten(nn.Module):
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return x.view(x.size(0), -1)
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_space, base=None, base_kwargs=None):
+    def __init__(
+        self,
+        obs_shape: tuple[int, ...],
+        action_space: Space,
+        base=None,
+        base_kwargs: Optional[dict] = None,
+    ):
         super(Policy, self).__init__()
         if base_kwargs is None:
             base_kwargs = {}
@@ -24,7 +32,7 @@ class Policy(nn.Module):
             else:
                 raise NotImplementedError
 
-        self.base = base(obs_shape[0], **base_kwargs)
+        self.base: NNBase = base(obs_shape[0], **base_kwargs)
 
         if action_space.__class__.__name__ == "Discrete":
             num_outputs = action_space.n
@@ -50,8 +58,14 @@ class Policy(nn.Module):
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
 
-    def act(self, inputs, rnn_hxs, masks, deterministic=False):
-        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+    def act(
+        self,
+        inputs: torch.Tensor,
+        rnn_hxs: torch.Tensor,
+        masks: torch.Tensor,
+        deterministic: bool = False,
+    ):
+        value, actor_features, rnn_hxs = self.base.forward(inputs, rnn_hxs, masks)
         dist = self.dist(actor_features)
 
         if deterministic:
@@ -62,11 +76,19 @@ class Policy(nn.Module):
         action_log_probs = dist.log_probs(action)
         return value, action, action_log_probs, rnn_hxs
 
-    def get_value(self, inputs, rnn_hxs, masks):
+    def get_value(
+        self, inputs: torch.Tensor, rnn_hxs: torch.Tensor, masks: torch.Tensor
+    ) -> torch.Tensor:
         value, _, _ = self.base(inputs, rnn_hxs, masks)
         return value
 
-    def evaluate_actions(self, inputs, rnn_hxs, masks, action):
+    def evaluate_actions(
+        self,
+        inputs: torch.Tensor,
+        rnn_hxs: torch.Tensor,
+        masks: torch.Tensor,
+        action: torch.Tensor,
+    ):
         value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
         dist = self.dist(actor_features)
 
@@ -77,7 +99,7 @@ class Policy(nn.Module):
 
 
 class NNBase(nn.Module):
-    def __init__(self, recurrent, recurrent_input_size, hidden_size):
+    def __init__(self, recurrent: bool, recurrent_input_size: int, hidden_size: int):
         super(NNBase, self).__init__()
 
         self._hidden_size = hidden_size
@@ -105,7 +127,7 @@ class NNBase(nn.Module):
     def output_size(self):
         return self._hidden_size
 
-    def _forward_gru(self, x, hxs, masks):
+    def _forward_gru(self, x: torch.Tensor, hxs: torch.Tensor, masks: torch.Tensor):
         if x.size(0) == hxs.size(0):
             x, hxs = self.gru(x.unsqueeze(0), (hxs * masks).unsqueeze(0))
             x = x.squeeze(0)
@@ -160,7 +182,9 @@ class NNBase(nn.Module):
 
 
 class CNNBase(NNBase):
-    def __init__(self, num_inputs, recurrent=False, hidden_size=512):
+    def __init__(
+        self, num_inputs: int, recurrent: bool = False, hidden_size: int = 512
+    ):
         super(CNNBase, self).__init__(recurrent, hidden_size, hidden_size)
 
         init_ = lambda m: init(
@@ -190,7 +214,7 @@ class CNNBase(NNBase):
 
         self.train()
 
-    def forward(self, inputs, rnn_hxs, masks):
+    def forward(self, inputs: torch.Tensor, rnn_hxs: torch.Tensor, masks: torch.Tensor):
         x = self.main(inputs / 255.0)
 
         if self.is_recurrent:
@@ -200,7 +224,7 @@ class CNNBase(NNBase):
 
 
 class MLPBase(NNBase):
-    def __init__(self, num_inputs, recurrent=False, hidden_size=64):
+    def __init__(self, num_inputs: int, recurrent: bool = False, hidden_size: int = 64):
         super(MLPBase, self).__init__(recurrent, num_inputs, hidden_size)
 
         if recurrent:
@@ -228,7 +252,7 @@ class MLPBase(NNBase):
 
         self.train()
 
-    def forward(self, inputs, rnn_hxs, masks):
+    def forward(self, inputs: torch.Tensor, rnn_hxs: torch.Tensor, masks: torch.Tensor):
         x = inputs
 
         if self.is_recurrent:

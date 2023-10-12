@@ -3,9 +3,18 @@ import torch
 
 from algo import utils
 from algo.envs import make_vec_envs
+from algo.model import Policy
 
 
-def evaluate(actor_critic, ob_rms, env_name, seed, num_processes, eval_log_dir, device):
+def evaluate(
+    actor_critic: Policy,
+    ob_rms: torch.Tensor,
+    env_name: str,
+    seed: int,
+    num_processes: int,
+    eval_log_dir: dict,
+    device: torch.device,
+):
     eval_envs = make_vec_envs(
         env_name, seed + num_processes, num_processes, None, eval_log_dir, device, True
     )

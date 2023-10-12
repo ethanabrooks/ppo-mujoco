@@ -1,3 +1,5 @@
+from typing import Optional
+from gym import Space
 import torch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
@@ -9,11 +11,11 @@ def _flatten_helper(T, N, _tensor):
 class RolloutStorage(object):
     def __init__(
         self,
-        num_steps,
-        num_processes,
-        obs_shape,
-        action_space,
-        recurrent_hidden_state_size,
+        num_steps: int,
+        num_processes: int,
+        obs_shape: tuple[int, ...],
+        action_space: Space,
+        recurrent_hidden_state_size: int,
     ):
         self.obs = torch.zeros(num_steps + 1, num_processes, *obs_shape)
         self.recurrent_hidden_states = torch.zeros(
@@ -39,7 +41,7 @@ class RolloutStorage(object):
         self.num_steps = num_steps
         self.step = 0
 
-    def to(self, device):
+    def to(self, device: torch.device):
         self.obs = self.obs.to(device)
         self.recurrent_hidden_states = self.recurrent_hidden_states.to(device)
         self.rewards = self.rewards.to(device)
@@ -52,14 +54,14 @@ class RolloutStorage(object):
 
     def insert(
         self,
-        obs,
-        recurrent_hidden_states,
-        actions,
-        action_log_probs,
-        value_preds,
-        rewards,
-        masks,
-        bad_masks,
+        obs: torch.Tensor,
+        recurrent_hidden_states: torch.Tensor,
+        actions: torch.Tensor,
+        action_log_probs: torch.Tensor,
+        value_preds: torch.Tensor,
+        rewards: torch.Tensor,
+        masks: torch.Tensor,
+        bad_masks: torch.Tensor,
     ):
         self.obs[self.step + 1].copy_(obs)
         self.recurrent_hidden_states[self.step + 1].copy_(recurrent_hidden_states)
@@ -79,7 +81,12 @@ class RolloutStorage(object):
         self.bad_masks[0].copy_(self.bad_masks[-1])
 
     def compute_returns(
-        self, next_value, use_gae, gamma, gae_lambda, use_proper_time_limits=True
+        self,
+        next_value: torch.Tensor,
+        use_gae: bool,
+        gamma: float,
+        gae_lambda: float,
+        use_proper_time_limits: bool = True,
     ):
         if use_proper_time_limits:
             if use_gae:
@@ -126,7 +133,10 @@ class RolloutStorage(object):
                     )
 
     def feed_forward_generator(
-        self, advantages, num_mini_batch=None, mini_batch_size=None
+        self,
+        advantages: torch.Tensor,
+        num_mini_batch: Optional[int] = None,
+        mini_batch_size: Optional[int] = None,
     ):
         num_steps, num_processes = self.rewards.size()[0:2]
         batch_size = num_processes * num_steps
@@ -161,7 +171,7 @@ class RolloutStorage(object):
 
             yield obs_batch, recurrent_hidden_states_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
 
-    def recurrent_generator(self, advantages, num_mini_batch):
+    def recurrent_generator(self, advantages: torch.Tensor, num_mini_batch: int):
         num_processes = self.rewards.size(1)
         assert num_processes >= num_mini_batch, (
             "PPO requires the number of processes ({}) "

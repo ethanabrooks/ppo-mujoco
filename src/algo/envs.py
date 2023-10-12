@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import gym
 import numpy as np
@@ -51,16 +52,16 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
 
 
 def make_vec_envs(
-    env_name,
-    seed,
-    num_processes,
-    gamma,
-    log_dir,
-    device,
-    allow_early_resets,
+    env_name: str,
+    seed: int,
+    num_processes: int,
+    gamma: float,
+    log_dir: str,
+    device: torch.device,
+    allow_early_resets: bool,
     dummy_vec_env: bool,
-    num_frame_stack=None,
-    record_video=False,
+    num_frame_stack: Optional[int] = None,
+    record_video: bool = False,
 ):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)
@@ -214,7 +215,7 @@ class VecPyTorchFrameStack(VecEnvWrapper):
         self.stacked_obs[:, : -self.shape_dim0] = self.stacked_obs[
             :, self.shape_dim0 :
         ].clone()
-        for (i, new) in enumerate(news):
+        for i, new in enumerate(news):
             if new:
                 self.stacked_obs[i] = 0
         self.stacked_obs[:, -self.shape_dim0 :] = obs
