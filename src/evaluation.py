@@ -2,12 +2,12 @@ import numpy as np
 import torch
 
 from algo import utils
+from algo.agent import Agent
 from algo.envs import make_vec_envs
-from algo.model import Policy
 
 
 def evaluate(
-    actor_critic: Policy,
+    actor_critic: Agent,
     ob_rms: torch.Tensor,
     env_name: str,
     seed: int,

@@ -1,6 +1,7 @@
 from typing import Optional
-from gym import Space
+
 import torch
+from gym import Space
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 

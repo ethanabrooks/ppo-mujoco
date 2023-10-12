@@ -5,12 +5,12 @@ from typing import Optional
 
 import numpy as np
 import torch
+from torch.optim import Adam
 from wandb.sdk.wandb_run import Run
 
 from algo import utils
+from algo.agent import Agent
 from algo.envs import make_vec_envs
-from algo.model import Policy
-from algo.ppo import PPO
 from algo.storage import RolloutStorage
 from algo.utils import get_vec_normalize
 from evaluation import evaluate
@@ -31,12 +31,13 @@ def train(
     num_processes: int,
     num_steps: int,
     num_env_steps: int,
-    ppo_params: dict,
+    optim_args: dict,
     recurrent_policy: bool,
     run: Optional[Run],
     save_dir: str,
     save_interval: int,
     seed: int,
+    update_args: dict,
 ):
     torch.manual_seed(seed)
 
@@ -55,27 +56,26 @@ def train(
     )
 
     if load_path is None:
-        actor_critic = Policy(
+        agent = Agent(
             obs_shape=envs.observation_space.shape,
             action_space=envs.action_space,
             base_kwargs={"recurrent": recurrent_policy},
         )
-        actor_critic.to(device)
+        agent.to(device)
     else:
-        actor_critic, ob_rms = torch.load(load_path)
+        agent, ob_rms = torch.load(load_path)
         vec_norm = get_vec_normalize(envs)
         if vec_norm is not None:
             vec_norm.eval()
             vec_norm.ob_rms = ob_rms
 
-    agent = PPO(actor_critic=actor_critic, lr=lr, **ppo_params)
-
+    optimizer = Adam(agent.parameters(), lr=lr, **optim_args)
     rollouts = RolloutStorage(
         num_steps=num_steps,
         num_processes=num_processes,
         obs_shape=envs.observation_space.shape,
         action_space=envs.action_space,
-        recurrent_hidden_state_size=actor_critic.recurrent_hidden_state_size,
+        recurrent_hidden_state_size=agent.recurrent_hidden_state_size,
     )
 
     obs = envs.reset()
@@ -89,17 +89,12 @@ def train(
     for j in range(num_updates):
         if not disable_linear_lr_decay:
             # decrease learning rate linearly
-            utils.update_linear_schedule(agent.optimizer, j, num_updates, lr)
+            utils.update_linear_schedule(optimizer, j, num_updates, lr)
 
         for step in range(num_steps):
             # Sample actions
             with torch.no_grad():
-                (
-                    value,
-                    action,
-                    action_log_prob,
-                    recurrent_hidden_states,
-                ) = actor_critic.act(
+                (value, action, action_log_prob, recurrent_hidden_states,) = agent.act(
                     inputs=rollouts.obs[step],
                     rnn_hxs=rollouts.recurrent_hidden_states[step],
                     masks=rollouts.masks[step],
@@ -130,7 +125,7 @@ def train(
             )
 
         with torch.no_grad():
-            next_value = actor_critic.get_value(
+            next_value = agent.get_value(
                 rollouts.obs[-1],
                 rollouts.recurrent_hidden_states[-1],
                 rollouts.masks[-1],
@@ -144,7 +139,9 @@ def train(
             not disable_proper_time_limits,
         )
 
-        value_loss, action_loss, dist_entropy = agent.update(rollouts)
+        value_loss, action_loss, dist_entropy = agent.update(
+            optimizer=optimizer, rollouts=rollouts, **update_args
+        )
 
         rollouts.after_update()
 
@@ -157,7 +154,7 @@ def train(
                 pass
 
             torch.save(
-                [actor_critic, getattr(utils.get_vec_normalize(envs), "ob_rms", None)],
+                [agent, getattr(utils.get_vec_normalize(envs), "ob_rms", None)],
                 os.path.join(save_path, env_name + ".pt"),
             )
 
@@ -194,7 +191,7 @@ def train(
         ):
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(
-                actor_critic=actor_critic,
+                actor_critic=agent,
                 ob_rms=ob_rms,
                 env_name=env_name,
                 seed=seed,

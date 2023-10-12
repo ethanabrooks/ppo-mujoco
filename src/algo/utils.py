@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
+from torch.optim.optimizer import Optimizer
 
 from algo.envs import VecNormalize
-from torch.optim.optimizer import Optimizer
 
 
 # Get a render function
