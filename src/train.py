@@ -54,6 +54,16 @@ def train(
         num_processes=num_processes,
         seed=seed,
     )
+    eval_envs = make_vec_envs(
+        allow_early_resets=True,
+        device=device,
+        dummy_vec_env=dummy_vec_env,
+        env_name=env_name,
+        gamma=None,
+        log_dir=None,
+        num_processes=num_processes,
+        seed=seed + num_processes,
+    )
 
     if load_path is None:
         agent = Agent(
@@ -191,11 +201,9 @@ def train(
         ):
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(
-                actor_critic=agent,
-                ob_rms=ob_rms,
-                env_name=env_name,
-                seed=seed,
-                num_processes=num_processes,
-                eval_log_dir=None,
+                agent=agent,
                 device=device,
+                eval_envs=eval_envs,
+                num_processes=num_processes,
+                ob_rms=ob_rms,
             )

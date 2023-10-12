@@ -3,22 +3,16 @@ import torch
 
 from algo import utils
 from algo.agent import Agent
-from algo.envs import make_vec_envs
+from external.vec_env.subproc_vec_env import SubprocVecEnv
 
 
 def evaluate(
-    actor_critic: Agent,
-    ob_rms: torch.Tensor,
-    env_name: str,
-    seed: int,
-    num_processes: int,
-    eval_log_dir: dict,
+    agent: Agent,
     device: torch.device,
+    eval_envs: SubprocVecEnv,
+    num_processes: int,
+    ob_rms: torch.Tensor,
 ):
-    eval_envs = make_vec_envs(
-        env_name, seed + num_processes, num_processes, None, eval_log_dir, device, True
-    )
-
     vec_norm = utils.get_vec_normalize(eval_envs)
     if vec_norm is not None:
         vec_norm.eval()
@@ -28,13 +22,13 @@ def evaluate(
 
     obs = eval_envs.reset()
     eval_recurrent_hidden_states = torch.zeros(
-        num_processes, actor_critic.recurrent_hidden_state_size, device=device
+        num_processes, agent.recurrent_hidden_state_size, device=device
     )
     eval_masks = torch.zeros(num_processes, 1, device=device)
 
     while len(eval_episode_rewards) < 10:
         with torch.no_grad():
-            _, action, _, eval_recurrent_hidden_states = actor_critic.act(
+            _, action, _, eval_recurrent_hidden_states = agent.act(
                 obs, eval_recurrent_hidden_states, eval_masks, deterministic=True
             )
 
