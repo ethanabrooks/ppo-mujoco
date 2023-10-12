@@ -7,7 +7,6 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from contextlib import contextmanager
 
 DEBUG = 10
 INFO = 20
@@ -40,7 +39,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
     def writekvs(self, kvs):
         # Create strings for printing
         key2str = {}
-        for (key, val) in sorted(kvs.items()):
+        for key, val in sorted(kvs.items()):
             if hasattr(val, "__float__"):
                 valstr = "%-8.3g" % val
             else:
@@ -58,7 +57,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
         # Write out the data
         dashes = "-" * (keywidth + valwidth + 7)
         lines = [dashes]
-        for (key, val) in sorted(key2str.items(), key=lambda kv: kv[0].lower()):
+        for key, val in sorted(key2str.items(), key=lambda kv: kv[0].lower()):
             lines.append(
                 "| %s%s | %s%s |"
                 % (
@@ -80,7 +79,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
 
     def writeseq(self, seq):
         seq = list(seq)
-        for (i, elem) in enumerate(seq):
+        for i, elem in enumerate(seq):
             self.file.write(elem)
             if i < len(seq) - 1:  # add space unless this is the last one
                 self.file.write(" ")
@@ -122,7 +121,7 @@ class CSVOutputFormat(KVWriter):
             self.file.seek(0)
             lines = self.file.readlines()
             self.file.seek(0)
-            for (i, k) in enumerate(self.keys):
+            for i, k in enumerate(self.keys):
                 if i > 0:
                     self.file.write(",")
                 self.file.write(k)
@@ -131,7 +130,7 @@ class CSVOutputFormat(KVWriter):
                 self.file.write(line[:-1])
                 self.file.write(self.sep * len(extra_keys))
                 self.file.write("\n")
-        for (i, k) in enumerate(self.keys):
+        for i, k in enumerate(self.keys):
             if i > 0:
                 self.file.write(",")
             v = kvs.get(k)
@@ -407,17 +406,6 @@ def reset():
         Logger.CURRENT.close()
         Logger.CURRENT = Logger.DEFAULT
         log("Reset logger")
-
-
-@contextmanager
-def scoped_configure(dir=None, format_strs=None, comm=None):
-    prevlogger = Logger.CURRENT
-    configure(dir=dir, format_strs=format_strs, comm=comm)
-    try:
-        yield
-    finally:
-        Logger.CURRENT.close()
-        Logger.CURRENT = prevlogger
 
 
 # ================================================================

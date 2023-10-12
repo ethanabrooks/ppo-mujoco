@@ -1,11 +1,11 @@
+import gym
 import numpy as np
 
 from external.running_mean_std import RunningMeanStd
+from external.vec_env.subproc_vec_env import SubprocVecEnv
 
-from . import VecEnvWrapper
 
-
-class VecNormalize(VecEnvWrapper):
+class VecNormalize(gym.Wrapper):
     """
     A vectorized wrapper that normalizes the observations
     and returns from an environment.
@@ -13,25 +13,26 @@ class VecNormalize(VecEnvWrapper):
 
     def __init__(
         self,
-        venv,
-        ob=True,
-        ret=True,
-        clipob=10.0,
-        cliprew=10.0,
-        gamma=0.99,
-        epsilon=1e-8,
+        venv: SubprocVecEnv,
+        ob: bool = True,
+        ret: bool = True,
+        clipob: float = 10.0,
+        cliprew: float = 10.0,
+        gamma: float = 0.99,
+        epsilon: float = 1e-8,
     ):
-        VecEnvWrapper.__init__(self, venv)
+        super().__init__(venv)
+        self.venv = venv
         self.ob_rms = RunningMeanStd(shape=self.observation_space.shape) if ob else None
         self.ret_rms = RunningMeanStd(shape=()) if ret else None
         self.clipob = clipob
         self.cliprew = cliprew
-        self.ret = np.zeros(self.num_envs)
+        self.ret = np.zeros(self.venv.n_processes)
         self.gamma = gamma
         self.epsilon = epsilon
 
-    def step_wait(self):
-        obs, rews, news, infos = self.venv.step_wait()
+    def step(self, action: np.ndarray):
+        obs, rews, news, infos = self.venv.step(action)
         self.ret = self.ret * self.gamma + rews
         obs = self._obfilt(obs)
         if self.ret_rms:
@@ -57,6 +58,6 @@ class VecNormalize(VecEnvWrapper):
             return obs
 
     def reset(self):
-        self.ret = np.zeros(self.num_envs)
+        self.ret = np.zeros(self.venv.n_processes)
         obs = self.venv.reset()
         return self._obfilt(obs)

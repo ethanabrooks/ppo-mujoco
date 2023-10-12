@@ -1,16 +1,24 @@
 import time
 from collections import deque
+from typing import Optional
 
+import gym
 import numpy as np
 
 from external.bench.monitor import ResultsWriter
+from external.vec_env.subproc_vec_env import SubprocVecEnv
 
-from . import VecEnvWrapper
 
-
-class VecMonitor(VecEnvWrapper):
-    def __init__(self, venv, filename=None, keep_buf=0, info_keywords=()):
-        VecEnvWrapper.__init__(self, venv)
+class VecMonitor(gym.Wrapper):
+    def __init__(
+        self,
+        venv: SubprocVecEnv,
+        filename: Optional[str] = None,
+        keep_buf: int = 0,
+        info_keywords: tuple = (),
+    ):
+        super().__init__(self, venv)
+        self.venv = venv
         self.eprets = None
         self.eplens = None
         self.tstart = time.time()
@@ -28,12 +36,12 @@ class VecMonitor(VecEnvWrapper):
 
     def reset(self):
         obs = self.venv.reset()
-        self.eprets = np.zeros(self.num_envs, "f")
-        self.eplens = np.zeros(self.num_envs, "i")
+        self.eprets = np.zeros(self.venv.n_processes, "f")
+        self.eplens = np.zeros(self.venv.n_processes, "i")
         return obs
 
-    def step_wait(self):
-        obs, rews, dones, infos = self.venv.step_wait()
+    def step(self, action: np.ndarray):
+        obs, rews, dones, infos = self.venv.step(action)
         self.eprets += rews
         self.eplens += 1
 

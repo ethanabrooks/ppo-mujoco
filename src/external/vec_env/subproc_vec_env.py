@@ -1,158 +1,167 @@
-import multiprocessing as mp
+"""
+Taken from https://github.com/openai/baselines
+"""
+from enum import Enum, auto
+from multiprocessing import Pipe, Process
+from multiprocessing.connection import Connection
+from typing import Optional
 
+import gym
 import numpy as np
 
-from .vec_env import CloudpickleWrapper, VecEnv, clear_mpi_env_vars
+from envs.base import Env
 
 
-def worker(remote, parent_remote, env_fn_wrappers):
-    def step_env(env, action):
-        ob, reward, done, info = env.step(action)
-        if done:
-            ob = env.reset()
-        return ob, reward, done, info
+class CloudpickleWrapper(object):
+    """
+    Uses cloudpickle to serialize contents (otherwise multiprocessing tries to use pickle)
+    """
 
+    def __init__(self, x):
+        self.x = x
+
+    def __getstate__(self):
+        import cloudpickle
+
+        return cloudpickle.dumps(self.x)
+
+    def __setstate__(self, ob):
+        import pickle
+
+        self.x = pickle.loads(ob)
+
+
+class Command(Enum):
+    ACTION_SPACE = auto()
+    CLOSE = auto()
+    OBSERVATION_SPACE = auto()
+    RESET = auto()
+    STEP = auto()
+
+
+def work(env: Env, command: Command, data):
+    if command == Command.ACTION_SPACE:
+        return env.action_space
+    elif command == Command.OBSERVATION_SPACE:
+        return env.observation_space
+    elif command == Command.RESET:
+        return env.reset()
+    elif command == Command.STEP:
+        s, r, t, i = env.step(data)
+        if t:
+            s = env.reset()
+        return s, r, t, i
+    raise RuntimeError(f"Unknown command {command}")
+
+
+def worker(
+    remote: Connection, parent_remote: Connection, env_fn_wrapper: CloudpickleWrapper
+):
     parent_remote.close()
-    envs = [env_fn_wrapper() for env_fn_wrapper in env_fn_wrappers.x]
+    env: Env = env_fn_wrapper.x()
     try:
         while True:
             cmd, data = remote.recv()
-            if cmd == "step":
-                remote.send([step_env(env, action) for env, action in zip(envs, data)])
-            elif cmd == "reset":
-                remote.send([env.reset() for env in envs])
-            elif cmd == "render":
-                remote.send([env.render(mode="rgb_array") for env in envs])
-            elif cmd == "close":
-                remote.close()
+            if cmd == Command.CLOSE:
                 break
-            elif cmd == "get_spaces_spec":
-                remote.send(
-                    (envs[0].observation_space, envs[0].action_space, envs[0].spec)
-                )
             else:
-                raise NotImplementedError
-    except KeyboardInterrupt:
-        print("SubprocVecEnv worker: got KeyboardInterrupt")
+                remote.send(work(env, cmd, data))
     finally:
-        for env in envs:
-            env.close()
+        env.close()
+        remote.close()
 
 
-class SubprocVecEnv(VecEnv):
+class SubprocVecEnv(gym.Env):
     """
-    VecEnv that runs multiple environments in parallel in subproceses and communicates with them via pipes.
+    VecEnv that runs multiple envs in parallel in subproceses and communicates with them via pipes.
     Recommended to use when num_envs > 1 and step() can be a bottleneck.
     """
 
-    def __init__(self, env_fns, spaces=None, context="spawn", in_series=1):
+    def __init__(self, env_fns):
         """
         Arguments:
 
-        env_fns: iterable of callables -  functions that create environments to run in subprocesses. Need to be cloud-pickleable
-        in_series: number of environments to run in series in a single process
-        (e.g. when len(env_fns) == 12 and in_series == 3, it will run 4 processes, each running 3 envs in series)
+        env_fns: iterable of callables -  functions that create envs to run in subprocesses. Need to be cloud-pickleable
         """
-        self.waiting = False
+        self._n_processes = len(env_fns)
         self.closed = False
-        self.in_series = in_series
-        nenvs = len(env_fns)
-        assert (
-            nenvs % in_series == 0
-        ), "Number of envs must be divisible by number of envs to run in series"
-        self.nremotes = nenvs // in_series
-        env_fns = np.array_split(env_fns, self.nremotes)
-        ctx = mp.get_context(context)
-        self.remotes, self.work_remotes = zip(
-            *[ctx.Pipe() for _ in range(self.nremotes)]
-        )
-        self.ps = [
-            ctx.Process(
-                target=worker, args=(work_remote, remote, CloudpickleWrapper(env_fn))
-            )
-            for (work_remote, remote, env_fn) in zip(
-                self.work_remotes, self.remotes, env_fns
-            )
-        ]
-        for p in self.ps:
-            p.daemon = (
-                True  # if the main process crashes, we should not cause things to hang
-            )
-            with clear_mpi_env_vars():
-                p.start()
-        for remote in self.work_remotes:
-            remote.close()
-
-        self.remotes[0].send(("get_spaces_spec", None))
-        observation_space, action_space, self.spec = self.remotes[0].recv()
-        self.viewer = None
-        VecEnv.__init__(self, nenvs, observation_space, action_space)
-
-    def step_async(self, actions):
-        self._assert_not_closed()
-        actions = np.array_split(actions, self.nremotes)
-        for remote, action in zip(self.remotes, actions):
-            remote.send(("step", action))
-        self.waiting = True
-
-    def step_wait(self):
-        self._assert_not_closed()
-        results = [remote.recv() for remote in self.remotes]
-        results = _flatten_list(results)
         self.waiting = False
-        obs, rews, dones, infos = zip(*results)
-        return _flatten_obs(obs), np.stack(rews), np.stack(dones), infos
-
-    def reset(self):
-        self._assert_not_closed()
-        for remote in self.remotes:
-            remote.send(("reset", None))
-        obs = [remote.recv() for remote in self.remotes]
-        obs = _flatten_list(obs)
-        return _flatten_obs(obs)
-
-    def close_extras(self):
-        self.closed = True
-        if self.waiting:
-            for remote in self.remotes:
-                remote.recv()
-        for remote in self.remotes:
-            remote.send(("close", None))
-        for p in self.ps:
-            p.join()
-
-    def get_images(self):
-        self._assert_not_closed()
-        for pipe in self.remotes:
-            pipe.send(("render", None))
-        imgs = [pipe.recv() for pipe in self.remotes]
-        imgs = _flatten_list(imgs)
-        return imgs
+        self.remotes: list[Connection]
+        self.remotes, self.ps = self.start_processes(env_fns)
 
     def _assert_not_closed(self):
         assert (
             not self.closed
         ), "Trying to operate on a SubprocVecEnv after calling close()"
 
-    def __del__(self):
-        if not self.closed:
-            self.close()
+    @property
+    def action_space(self):
+        return self.send_to_first(Command.ACTION_SPACE, None)
 
+    @property
+    def n_processes(self):
+        return self._n_processes
 
-def _flatten_obs(obs):
-    assert isinstance(obs, (list, tuple))
-    assert len(obs) > 0
+    @property
+    def observation_space(self):
+        return self.send_to_first(Command.OBSERVATION_SPACE, None)
 
-    if isinstance(obs[0], dict):
-        keys = obs[0].keys()
-        return {k: np.stack([o[k] for o in obs]) for k in keys}
-    else:
-        return np.stack(obs)
+    def close(self):
+        if self.waiting:
+            for remote in self.remotes:
+                remote.recv()
+        for remote in self.remotes:
+            remote.send((Command.CLOSE, None))
+        for p in self.ps:
+            p.join()
+        self.closed = True
 
+    def reset(self, n: Optional[int] = None) -> np.ndarray:
+        if n is None:
+            return np.stack(self.send_to_all(Command.RESET, None))
+        else:
+            return self.send_to_nth(n, Command.RESET, None)
 
-def _flatten_list(l):
-    assert isinstance(l, (list, tuple))
-    assert len(l) > 0
-    assert all([len(l_) > 0 for l_ in l])
+    def send_to_all(self, command: Command, data):
+        self._assert_not_closed()
+        if data is None:
+            for remote in self.remotes:
+                remote.send((command, data))
+        else:
+            for remote, data in zip(self.remotes, data):
+                remote.send((command, data))
+        self.waiting = True
+        received = [remote.recv() for remote in self.remotes]
+        self.waiting = False
+        return received
 
-    return [l__ for l_ in l for l__ in l_]
+    def send_to_first(self, command: Command, data):
+        return self.send_to_nth(0, command, data)
+
+    def send_to_nth(self, n: int, command: Command, data):
+        self._assert_not_closed()
+        remote = self.remotes[n]
+        remote.send((command, data))
+        return remote.recv()
+
+    def start_processes(self, env_fns) -> tuple[list, list[Process]]:
+        remotes, work_remotes = zip(*[Pipe() for _ in range(len(env_fns))])
+        ps = [
+            Process(
+                target=worker, args=(work_remote, remote, CloudpickleWrapper(env_fn))
+            )
+            for (work_remote, remote, env_fn) in zip(work_remotes, remotes, env_fns)
+        ]
+        for p in ps:
+            # if the main process crashes, we should not cause things to hang
+            p.daemon = True
+            p.start()
+        for remote in work_remotes:
+            remote.close()
+        return remotes, ps
+
+    def step(
+        self, actions: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list]:
+        obs, rews, dones, infos = zip(*self.send_to_all(Command.STEP, actions))
+        return np.stack(obs), np.stack(rews), np.stack(dones), infos

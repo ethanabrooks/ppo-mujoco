@@ -1,18 +1,21 @@
 import os
 
+import gym
+import numpy as np
 from gym.wrappers.monitoring import video_recorder
 
 from external import logger
+from external.vec_env.subproc_vec_env import SubprocVecEnv
 
-from . import VecEnvWrapper
 
-
-class VecVideoRecorder(VecEnvWrapper):
+class VecVideoRecorder(gym.Wrapper):
     """
     Wrap VecEnv to record rendered image as mp4 video.
     """
 
-    def __init__(self, venv, directory, record_video_trigger, video_length=200):
+    def __init__(
+        self, venv: SubprocVecEnv, directory, record_video_trigger, video_length=200
+    ):
         """
         # Arguments
             venv: VecEnv to wrap
@@ -24,7 +27,8 @@ class VecVideoRecorder(VecEnvWrapper):
             video_length: Length of recorded video
         """
 
-        VecEnvWrapper.__init__(self, venv)
+        super().__init__(self, venv)
+        self.venv = venv
         self.record_video_trigger = record_video_trigger
         self.video_recorder = None
 
@@ -67,8 +71,8 @@ class VecVideoRecorder(VecEnvWrapper):
     def _video_enabled(self):
         return self.record_video_trigger(self.step_id)
 
-    def step_wait(self):
-        obs, rews, dones, infos = self.venv.step_wait()
+    def step(self, action: np.ndarray):
+        obs, rews, dones, infos = self.venv.step(action)
 
         self.step_id += 1
         if self.recording:
@@ -89,7 +93,7 @@ class VecVideoRecorder(VecEnvWrapper):
         self.recorded_frames = 0
 
     def close(self):
-        VecEnvWrapper.close(self)
+        self.venv.close(self)
         self.close_video_recorder()
 
     def __del__(self):

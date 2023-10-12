@@ -7,9 +7,8 @@ import torch
 from gym.spaces.box import Box
 
 from external import bench
-from external.vec_env import VecEnvWrapper
 from external.vec_env.dummy_vec_env import DummyVecEnv
-from external.vec_env.shmem_vec_env import ShmemVecEnv
+from external.vec_env.subproc_vec_env import SubprocVecEnv
 from external.vec_env.vec_normalize import VecNormalize as VecNormalize_
 from external.vec_env.vec_video_recorder import VecVideoRecorder
 
@@ -69,7 +68,7 @@ def make_vec_envs(
     ]
 
     if dummy_vec_env or len(envs) > 1:
-        envs = ShmemVecEnv(envs, context="fork")
+        envs = SubprocVecEnv(envs)
     else:
         envs = DummyVecEnv(envs)
 
@@ -137,10 +136,11 @@ class TransposeImage(TransposeObs):
         return ob.transpose(self.op[0], self.op[1], self.op[2])
 
 
-class VecPyTorch(VecEnvWrapper):
-    def __init__(self, venv, device):
+class VecPyTorch(gym.Wrapper):
+    def __init__(self, venv: SubprocVecEnv, device: torch.Tensor):
         """Return only every `skip`-th frame"""
-        super(VecPyTorch, self).__init__(venv)
+        super().__init__(venv)
+        self.venv = venv
         self.device = device
         # TODO: Fix data types
 
@@ -149,15 +149,9 @@ class VecPyTorch(VecEnvWrapper):
         obs = torch.from_numpy(obs).float().to(self.device)
         return obs
 
-    def step_async(self, actions):
-        if isinstance(actions, torch.LongTensor):
-            # Squeeze the dimension for discrete actions
-            actions = actions.squeeze(1)
-        actions = actions.cpu().numpy()
-        self.venv.step_async(actions)
-
-    def step_wait(self):
-        obs, reward, done, info = self.venv.step_wait()
+    def step(self, action: torch.Tensor):
+        action = action.detach().cpu().numpy()
+        obs, reward, done, info = self.venv.step(action)
         obs = torch.from_numpy(obs).float().to(self.device)
         reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
         return obs, reward, done, info
@@ -190,8 +184,8 @@ class VecNormalize(VecNormalize_):
 
 # Derived from
 # https://github.com/openai/baselines/blob/master/baselines/common/vec_env/vec_frame_stack.py
-class VecPyTorchFrameStack(VecEnvWrapper):
-    def __init__(self, venv, nstack, device=None):
+class VecPyTorchFrameStack(gym.Wrapper):
+    def __init__(self, venv: SubprocVecEnv, nstack: int, device: torch.device = None):
         self.venv = venv
         self.nstack = nstack
 
@@ -199,19 +193,15 @@ class VecPyTorchFrameStack(VecEnvWrapper):
         self.shape_dim0 = wos.shape[0]
 
         low = np.repeat(wos.low, self.nstack, axis=0)
-        high = np.repeat(wos.high, self.nstack, axis=0)
 
         if device is None:
             device = torch.device("cpu")
         self.stacked_obs = torch.zeros((venv.num_envs,) + low.shape).to(device)
 
-        observation_space = gym.spaces.Box(
-            low=low, high=high, dtype=venv.observation_space.dtype
-        )
-        VecEnvWrapper.__init__(self, venv, observation_space=observation_space)
+        super().__init__(venv)
 
-    def step_wait(self):
-        obs, rews, news, infos = self.venv.step_wait()
+    def step(self, action: torch.Tensor):
+        obs, rews, news, infos = self.venv.step(action)
         self.stacked_obs[:, : -self.shape_dim0] = self.stacked_obs[
             :, self.shape_dim0 :
         ].clone()
