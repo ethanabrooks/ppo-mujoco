@@ -1,11 +1,15 @@
 import os
+from pathlib import Path
+from typing import Callable
 
 import gym
+import imageio
 import numpy as np
 from gym.wrappers.monitoring import video_recorder
+from wandb.sdk.wandb_run import Run
 
-from external import logger
 from external.vec_env.subproc_vec_env import SubprocVecEnv
+from wandb import Video
 
 
 class VecVideoRecorder(gym.Wrapper):
@@ -14,27 +18,19 @@ class VecVideoRecorder(gym.Wrapper):
     """
 
     def __init__(
-        self, venv: SubprocVecEnv, directory, record_video_trigger, video_length=200
+        self,
+        name: str,
+        record_video_trigger: Callable[[int], bool],
+        run: Run,
+        venv: SubprocVecEnv,
+        video_length: int,
     ):
-        """
-        # Arguments
-            venv: VecEnv to wrap
-            directory: Where to save videos
-            record_video_trigger:
-                Function that defines when to start recording.
-                The function takes the current number of step,
-                and returns whether we should start recording or not.
-            video_length: Length of recorded video
-        """
-
-        super().__init__(self, venv)
-        self.venv = venv
+        super().__init__(venv)
+        self.name = name
         self.record_video_trigger = record_video_trigger
+        self.run = run
+        self.venv = venv
         self.video_recorder = None
-
-        self.directory = os.path.abspath(directory)
-        if not os.path.exists(self.directory):
-            os.mkdir(self.directory)
 
         self.file_prefix = "vecenv"
         self.file_infix = "{}".format(os.getpid())
@@ -43,6 +39,12 @@ class VecVideoRecorder(gym.Wrapper):
 
         self.recording = False
         self.recorded_frames = 0
+        self.path = Path(
+            self.run.dir,
+            "{}.video.{}.video{:06}.avi".format(
+                self.file_prefix, self.file_infix, self.step_id
+            ),
+        )
 
     def reset(self):
         obs = self.venv.reset()
@@ -54,14 +56,8 @@ class VecVideoRecorder(gym.Wrapper):
     def start_video_recorder(self):
         self.close_video_recorder()
 
-        base_path = os.path.join(
-            self.directory,
-            "{}.video.{}.video{:06}".format(
-                self.file_prefix, self.file_infix, self.step_id
-            ),
-        )
         self.video_recorder = video_recorder.VideoRecorder(
-            env=self.venv, base_path=base_path, metadata={"step_id": self.step_id}
+            env=self.venv, base_path=str(self.path), metadata={"step_id": self.step_id}
         )
 
         self.video_recorder.capture_frame()
@@ -79,7 +75,6 @@ class VecVideoRecorder(gym.Wrapper):
             self.video_recorder.capture_frame()
             self.recorded_frames += 1
             if self.recorded_frames > self.video_length:
-                logger.info("Saving video to ", self.video_recorder.path)
                 self.close_video_recorder()
         elif self._video_enabled():
             self.start_video_recorder()
@@ -88,7 +83,18 @@ class VecVideoRecorder(gym.Wrapper):
 
     def close_video_recorder(self):
         if self.recording:
+            breakpoint()
             self.video_recorder.close()
+            reader = imageio.get_reader(str(self.path))
+            fps = reader.get_meta_data()["fps"]
+
+            mp4_path = str(self.path.with_suffix(".mp4"))
+            writer = imageio.get_writer(mp4_path, fps=fps)
+            for im in reader:
+                writer.append_data(im)
+            writer.close()
+            video = Video(mp4_path)
+            self.run.log(dict(video=video))
         self.recording = False
         self.recorded_frames = 0
 

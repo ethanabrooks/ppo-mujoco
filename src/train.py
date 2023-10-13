@@ -53,7 +53,9 @@ def train(
         gamma=gamma,
         log_dir=None,
         num_processes=num_processes,
+        run=run,
         seed=seed,
+        video_name="train",
     )
     eval_envs = make_vec_envs(
         allow_early_resets=True,
@@ -63,7 +65,9 @@ def train(
         gamma=None,
         log_dir=None,
         num_processes=num_processes,
+        run=run,
         seed=seed + num_processes,
+        video_name="eval",
     )
 
     agent = Agent(

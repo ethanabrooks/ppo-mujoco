@@ -1,9 +1,11 @@
 import os
+from typing import Optional
 
 import gym
 import numpy as np
 import torch
 from gym.spaces.box import Box
+from wandb.sdk.wandb_run import Run
 
 from external import bench
 from external.vec_env.dummy_vec_env import DummyVecEnv
@@ -12,7 +14,7 @@ from external.vec_env.vec_normalize import VecNormalize as VecNormalize_
 from external.vec_env.vec_video_recorder import VecVideoRecorder
 
 
-def make_env(env_id, seed, rank, log_dir, allow_early_resets):
+def make_env(env_id: str, seed: int, rank: int, log_dir: str, allow_early_resets: bool):
     def _thunk():
         env = gym.make(env_id)
 
@@ -41,15 +43,16 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
 
 
 def make_vec_envs(
+    allow_early_resets: bool,
+    device: torch.device,
+    dummy_vec_env: bool,
     env_name: str,
-    seed: int,
-    num_processes: int,
     gamma: float,
     log_dir: str,
-    device: torch.device,
-    allow_early_resets: bool,
-    dummy_vec_env: bool,
-    record_video: bool = False,
+    num_processes: int,
+    run: Optional[Run],
+    seed: int,
+    video_name: str,
 ):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)
@@ -69,11 +72,12 @@ def make_vec_envs(
 
     envs = VecPyTorch(envs, device)
 
-    if record_video:
+    if run is not None:
         envs = VecVideoRecorder(
-            envs,
-            directory=os.path.join(log_dir, "videos"),
-            record_video_trigger=lambda x: x % 1000000 == 0,
+            venv=envs,
+            name=video_name,
+            record_video_trigger=lambda x: x % 10_000 == 0,
+            run=run,
             video_length=100,
         )
 
