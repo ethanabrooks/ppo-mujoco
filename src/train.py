@@ -8,9 +8,10 @@ import torch
 from torch.optim import Adam
 from wandb.sdk.wandb_run import Run
 
+import wandb
 from algo import utils
 from algo.agent import Agent
-from algo.envs import make_vec_envs
+from algo.envs import VecNormalize, make_vec_envs
 from algo.storage import RolloutStorage
 from algo.utils import get_vec_normalize
 from evaluation import evaluate
@@ -65,19 +66,20 @@ def train(
         seed=seed + num_processes,
     )
 
-    if load_path is None:
-        agent = Agent(
-            obs_shape=envs.observation_space.shape,
-            action_space=envs.action_space,
-            base_kwargs={"recurrent": recurrent_policy},
-        )
-        agent.to(device)
-    else:
-        agent, ob_rms = torch.load(load_path)
+    agent = Agent(
+        obs_shape=envs.observation_space.shape,
+        action_space=envs.action_space,
+        base_kwargs={"recurrent": recurrent_policy},
+    )
+    if load_path is not None:
+        state_dict: dict = torch.load(load_path)
         vec_norm = get_vec_normalize(envs)
         if vec_norm is not None:
+            ob_rms = state_dict.pop("ob_rms")
             vec_norm.eval()
             vec_norm.ob_rms = ob_rms
+        agent.load_state_dict(state_dict)
+    agent.to(device)
 
     optimizer = Adam(agent.parameters(), lr=lr, **optim_args)
     rollouts = RolloutStorage(
@@ -157,16 +159,14 @@ def train(
 
         # save for every interval-th episode or for the last epoch
         if (j % save_interval == 0 or j == num_updates - 1) and save_dir != "":
-            save_path = save_dir
-            try:
-                os.makedirs(save_path)
-            except OSError:
-                pass
-
-            torch.save(
-                [agent, getattr(utils.get_vec_normalize(envs), "ob_rms", None)],
-                os.path.join(save_path, env_name + ".pt"),
-            )
+            if run is not None:
+                savepath = os.path.join(run.dir, "agent.pt")
+                state_dict = agent.state_dict()
+                vec_normalize: Optional[VecNormalize] = utils.get_vec_normalize(envs)
+                if vec_normalize is not None:
+                    state_dict.update(obs_rms=vec_normalize.ob_rms)
+                torch.save(state_dict, savepath)
+                wandb.save(savepath)
 
         if j % log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (j + 1) * num_processes * num_steps
