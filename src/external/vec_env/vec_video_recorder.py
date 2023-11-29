@@ -56,6 +56,7 @@ class VecVideoRecorder(gym.Wrapper):
     def start_video_recorder(self):
         self.close_video_recorder()
 
+        breakpoint()
         self.video_recorder = video_recorder.VideoRecorder(
             env=self.venv, base_path=str(self.path), metadata={"step_id": self.step_id}
         )
@@ -72,6 +73,7 @@ class VecVideoRecorder(gym.Wrapper):
 
         self.step_id += 1
         if self.recording:
+            breakpoint()
             self.video_recorder.capture_frame()
             self.recorded_frames += 1
             if self.recorded_frames > self.video_length:
@@ -83,18 +85,18 @@ class VecVideoRecorder(gym.Wrapper):
 
     def close_video_recorder(self):
         if self.recording:
-            breakpoint()
             self.video_recorder.close()
-            reader = imageio.get_reader(str(self.path))
-            fps = reader.get_meta_data()["fps"]
+            if self.video_recorder.enabled:
+                reader = imageio.get_reader(str(self.path))
+                fps = reader.get_meta_data()["fps"]
 
-            mp4_path = str(self.path.with_suffix(".mp4"))
-            writer = imageio.get_writer(mp4_path, fps=fps)
-            for im in reader:
-                writer.append_data(im)
-            writer.close()
-            video = Video(mp4_path)
-            self.run.log(dict(video=video))
+                mp4_path = str(self.path.with_suffix(".mp4"))
+                writer = imageio.get_writer(mp4_path, fps=fps)
+                for im in reader:
+                    writer.append_data(im)
+                writer.close()
+                video = Video(mp4_path)
+                self.run.log(dict(video=video))
         self.recording = False
         self.recorded_frames = 0
 
