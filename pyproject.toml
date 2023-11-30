@@ -5,9 +5,8 @@ description = ""
 authors = ["Ethan Brooks <ethanabrooks@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.11"
 torch = "1.13.1"
-gym = "^0.17.2"
 matplotlib = "^3.7.1"
 mujoco-py = "^2.0.2.10"
 torchrl = "^0.0.5"
