@@ -52,6 +52,12 @@
         grpcio-tools = pyprev.grpcio-tools.overridePythonAttrs (old: {
           buildInputs = [pyfinal.grpcio pkgs.gcc-unwrapped];
         });
+        miniworld = pyprev.miniworld.overridePythonAttrs (oldAttrs: {
+          buildInputs = oldAttrs.buildInputs ++ [pkgs.patchelf];
+          preFixup = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib pkgs.libGL pkgs.libGLU pkgs.mesa]}:$LD_LIBRARY_PATH"
+          '';
+        });
         mujoco-py =
           (pyprev.mujoco-py.override {
             preferWheel = false;
