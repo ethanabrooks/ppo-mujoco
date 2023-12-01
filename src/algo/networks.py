@@ -41,7 +41,7 @@ class Network(nn.Module):
 
     def _forward_gru(self, x: torch.Tensor, hxs: torch.Tensor, masks: torch.Tensor):
         if x.size(0) == hxs.size(0):
-            x, hxs = self.gru(x.unsqueeze(0), (hxs * masks).unsqueeze(0))
+            x, hxs = self.gru(x[None], (hxs * masks[:, None])[None])
             x = x.squeeze(0)
             hxs = hxs.squeeze(0)
         else:
@@ -57,7 +57,9 @@ class Network(nn.Module):
 
             # Let's figure out which steps in the sequence have a zero for any agent
             # We will always assume t=0 has a zero in it as that makes the logic cleaner
-            has_zeros = (masks[1:] == 0.0).any(dim=-1).nonzero().squeeze().cpu()
+            has_zeros: torch.Tensor = (
+                (masks[1:] == 0.0).any(dim=-1).nonzero().squeeze().cpu()
+            )
 
             # +1 to correct the masks[1:]
             if has_zeros.dim() == 0:
@@ -69,7 +71,7 @@ class Network(nn.Module):
             # add t=0 and t=T to the list
             has_zeros = [0] + has_zeros + [T]
 
-            hxs = hxs.unsqueeze(0)
+            hxs = hxs[None]
             outputs = []
             for i in range(len(has_zeros) - 1):
                 # We can now process steps that don't have any zeros in masks together!

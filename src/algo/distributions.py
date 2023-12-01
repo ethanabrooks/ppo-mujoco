@@ -20,7 +20,7 @@ class FixedCategorical(torch.distributions.Categorical):
 
     def log_probs(self, actions: torch.Tensor):
         log_prob: torch.Tensor = super().log_prob(actions.squeeze(-1))
-        return log_prob.view(actions.size(0), -1).sum(-1).unsqueeze(-1)
+        return log_prob.view(actions.size(0), -1).sum(-1)
 
     def mode(self):
         probs: torch.Tensor = self.probs
