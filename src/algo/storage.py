@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 
 import torch
@@ -5,8 +6,16 @@ from gym import Space
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 
-def _flatten_helper(T, N, _tensor):
-    return _tensor.view(T * N, *_tensor.size()[2:])
+@dataclass
+class Sample:
+    obs: torch.Tensor
+    rnn_hxs: torch.Tensor
+    actions: torch.Tensor
+    value_preds: torch.Tensor
+    returns: torch.Tensor
+    masks: torch.Tensor
+    old_action_log_probs: torch.Tensor
+    adv_targets: torch.Tensor
 
 
 class RolloutStorage(object):
@@ -56,19 +65,19 @@ class RolloutStorage(object):
     def insert(
         self,
         obs: torch.Tensor,
-        recurrent_hidden_states: torch.Tensor,
+        rnn_hxs: torch.Tensor,
         actions: torch.Tensor,
-        action_log_probs: torch.Tensor,
-        value_preds: torch.Tensor,
+        log_probs: torch.Tensor,
+        value: torch.Tensor,
         rewards: torch.Tensor,
         masks: torch.Tensor,
         bad_masks: torch.Tensor,
     ):
         self.obs[self.step + 1].copy_(obs)
-        self.recurrent_hidden_states[self.step + 1].copy_(recurrent_hidden_states)
+        self.recurrent_hidden_states[self.step + 1].copy_(rnn_hxs)
         self.actions[self.step].copy_(actions)
-        self.action_log_probs[self.step].copy_(action_log_probs)
-        self.value_preds[self.step].copy_(value_preds)
+        self.action_log_probs[self.step].copy_(log_probs)
+        self.value_preds[self.step].copy_(value)
         self.rewards[self.step].copy_(rewards)
         self.masks[self.step + 1].copy_(masks)
         self.bad_masks[self.step + 1].copy_(bad_masks)
@@ -170,7 +179,16 @@ class RolloutStorage(object):
             else:
                 adv_targ = advantages.view(-1)[indices]
 
-            yield obs_batch, recurrent_hidden_states_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+            yield Sample(
+                obs=obs_batch,
+                rnn_hxs=recurrent_hidden_states_batch,
+                actions=actions_batch,
+                value_preds=value_preds_batch,
+                returns=return_batch,
+                masks=masks_batch,
+                old_action_log_probs=old_action_log_probs_batch,
+                adv_targets=adv_targ,
+            )
 
     def recurrent_generator(self, advantages: torch.Tensor, num_mini_batch: int):
         num_processes = self.rewards.size(1)
@@ -219,15 +237,25 @@ class RolloutStorage(object):
                 recurrent_hidden_states_batch, 1
             ).view(N, -1)
 
-            # Flatten the (T, N, ...) tensors to (T * N, ...)
-            obs_batch = _flatten_helper(T, N, obs_batch)
-            actions_batch = _flatten_helper(T, N, actions_batch)
-            value_preds_batch = _flatten_helper(T, N, value_preds_batch)
-            return_batch = _flatten_helper(T, N, return_batch)
-            masks_batch = _flatten_helper(T, N, masks_batch)
-            old_action_log_probs_batch = _flatten_helper(
-                T, N, old_action_log_probs_batch
-            )
-            adv_targ = _flatten_helper(T, N, adv_targ)
+            def flatten(x: torch.Tensor):
+                return x.view(T * N, *x.size()[2:])
 
-            yield obs_batch, recurrent_hidden_states_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+            # Flatten the (T, N, ...) tensors to (T * N, ...)
+            obs_batch = flatten(obs_batch)
+            actions_batch = flatten(actions_batch)
+            value_preds_batch = flatten(value_preds_batch)
+            return_batch = flatten(return_batch)
+            masks_batch = flatten(masks_batch)
+            old_action_log_probs_batch = flatten(old_action_log_probs_batch)
+            adv_targ = flatten(adv_targ)
+
+            yield Sample(
+                obs=obs_batch,
+                rnn_hxs=recurrent_hidden_states_batch,
+                actions=actions_batch,
+                value_preds=value_preds_batch,
+                returns=return_batch,
+                masks=masks_batch,
+                old_action_log_probs=old_action_log_probs_batch,
+                adv_targets=adv_targ,
+            )
