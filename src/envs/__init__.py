@@ -1,11 +1,11 @@
-from gym.envs.registration import registry
+from gym.envs.registration import EnvSpec, registry
 
 
 # re-register custom envs to replace gym's default ones
 def register(id, **kwargs):
-    if id in registry.env_specs:
-        registry.env_specs.pop(id)
-    return registry.register(id, **kwargs)
+    if id in registry:
+        registry.pop(id)
+    registry[id] = EnvSpec(id=id, **kwargs)
 
 
 register(
