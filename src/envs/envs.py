@@ -1,6 +1,7 @@
 import os
 
 import gymnasium as gym
+import pyglet
 import torch
 from gymnasium.spaces.box import Box
 
@@ -8,6 +9,10 @@ from envs.dummy_vec_env import DummyVecEnv
 from envs.monitor import Monitor
 from envs.subproc_vec_env import SubprocVecEnv
 from envs.vec_normalize import VecNormalize
+
+pyglet.options["headless"] = True
+
+import miniworld  # noqa: F401, E402
 
 
 def make_env(env_id: str, seed: int, rank: int, log_dir: str):
