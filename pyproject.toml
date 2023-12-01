@@ -5,7 +5,7 @@ description = ""
 authors = ["Ethan Brooks <ethanabrooks@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.11"
 torch = "1.13.1"
 gym = "^0.17.2"
 matplotlib = "^3.7.1"
