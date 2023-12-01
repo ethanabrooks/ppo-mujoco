@@ -40,7 +40,6 @@ def train(
     device = torch.device("cpu")
 
     envs = make_vec_envs(
-        allow_early_resets=False,
         device=device,
         dummy_vec_env=dummy_vec_env,
         env_name=env_name,
@@ -85,7 +84,12 @@ def train(
     for j in range(num_updates):
         if not disable_linear_lr_decay:
             # decrease learning rate linearly
-            utils.update_linear_schedule(optimizer, j, num_updates, lr)
+            utils.update_linear_schedule(
+                optimizer=optimizer,
+                epoch=j,
+                total_num_epochs=num_updates,
+                initial_lr=lr,
+            )
 
         for step in range(num_steps):
             # Sample actions
@@ -97,7 +101,7 @@ def train(
                 )
 
             # Obser reward and next obs
-            obs, reward, done, infos = envs.step(action)
+            obs, reward, done, truncated, infos = envs.step(action)
 
             info: dict
             for info in infos:
@@ -105,10 +109,8 @@ def train(
                     episode_rewards.append(info["episode"]["r"])
 
             # If done then clean the history of observations.
-            masks = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in done])
-            bad_masks = torch.FloatTensor(
-                [[0.0] if "bad_transition" in info.keys() else [1.0] for info in infos]
-            )  # TODO: use truncated
+            masks = torch.from_numpy(~(done | truncated))
+            bad_masks = torch.from_numpy(~truncated)
 
             rollouts.insert(
                 obs=obs,

@@ -1,11 +1,11 @@
 import os
 from collections import OrderedDict
 from os import path
+from typing import Optional
 
-import gym
 import numpy as np
-from gym import error, spaces
-from gym.utils import seeding
+from gymnasium import Env, error, spaces
+from gymnasium.utils import seeding
 
 try:
     import mujoco_py
@@ -39,10 +39,10 @@ def convert_observation_to_space(observation):
     return space
 
 
-class MujocoEnv(gym.Env):
+class MujocoEnv(Env):
     """Superclass for all MuJoCo environments."""
 
-    def __init__(self, model_path, frame_skip):
+    def __init__(self, model_path: str, frame_skip):
         if model_path.startswith("/"):
             fullpath = model_path
         else:
@@ -109,10 +109,12 @@ class MujocoEnv(gym.Env):
 
     # -----------------------------
 
-    def reset(self):
+    def reset(self, seed: Optional[int] = None):
+        if seed is not None:
+            self.seed(seed)
         self.sim.reset()
         ob = self.reset_model()
-        return ob
+        return ob, {}
 
     def set_state(self, qpos, qvel):
         assert qpos.shape == (self.model.nq,) and qvel.shape == (self.model.nv,)

@@ -1,4 +1,4 @@
-from gym.envs.registration import EnvSpec, registry
+from gymnasium.envs.registration import EnvSpec, registry
 
 
 # re-register custom envs to replace gym's default ones

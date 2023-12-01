@@ -20,5 +20,5 @@ class Env(gym.Env, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, dict]:
+    def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
         raise NotImplementedError

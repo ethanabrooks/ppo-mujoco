@@ -33,7 +33,7 @@ class VecNormalize(gym.Wrapper):
         self.training = True
 
     def step(self, action: np.ndarray):
-        obs, rews, news, infos = self.venv.step(action)
+        obs, rews, news, truncs, infos = self.venv.step(action)
         self.ret = self.ret * self.gamma + rews
         obs = self._obfilt(obs)
         if self.ret_rms:
@@ -44,7 +44,7 @@ class VecNormalize(gym.Wrapper):
                 self.cliprew,
             )
         self.ret[news] = 0.0
-        return obs, rews, news, infos
+        return obs, rews, news, truncs, infos
 
     def _obfilt(self, obs, update=True):
         if self.ob_rms:

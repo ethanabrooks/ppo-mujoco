@@ -1,8 +1,8 @@
 import os
 
-import gym
+import gymnasium as gym
 import torch
-from gym.spaces.box import Box
+from gymnasium.spaces.box import Box
 
 from envs.dummy_vec_env import DummyVecEnv
 from envs.monitor import Monitor
@@ -10,20 +10,16 @@ from envs.subproc_vec_env import SubprocVecEnv
 from envs.vec_normalize import VecNormalize
 
 
-def make_env(env_id: str, seed: int, rank: int, log_dir: str, allow_early_resets: bool):
+def make_env(env_id: str, seed: int, rank: int, log_dir: str):
     def _thunk():
         env: gym.Env = gym.make(env_id)
-
-        env.seed(seed + rank)
-
-        if env.spec.max_episode_steps is not None:
-            env = TimeLimitMask(env)
 
         env = Monitor(
             env=env,
             filename=None if log_dir is None else os.path.join(log_dir, str(rank)),
-            allow_early_resets=allow_early_resets,
+            allow_early_resets=True,
         )
+        env.reset(seed=seed)
 
         # If the input has shape (W,H,3), wrap for PyTorch convolutions
         obs_shape = env.observation_space.shape
@@ -42,17 +38,10 @@ def make_vec_envs(
     gamma: float,
     log_dir: str,
     device: torch.device,
-    allow_early_resets: bool,
     dummy_vec_env: bool,
 ):
     envs = [
-        make_env(
-            env_id=env_name,
-            seed=seed,
-            rank=i,
-            log_dir=log_dir,
-            allow_early_resets=allow_early_resets,
-        )
+        make_env(env_id=env_name, seed=seed, rank=i, log_dir=log_dir)
         for i in range(num_processes)
     ]
 
@@ -71,20 +60,6 @@ def make_vec_envs(
     envs = VecPyTorch(envs, device)
 
     return envs
-
-
-# Checks whether done was caused my timit limits or not
-class TimeLimitMask(gym.Wrapper):
-    def step(self, action):
-        obs, rew, done, done, info = self.env.step(action)  # TODO: use truncated
-        spec = self.env.spec
-        if done and spec.max_episode_steps == self.env._elapsed_steps:
-            info["bad_transition"] = True
-
-        return obs, rew, done, info
-
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
 
 
 class TransposeObs(gym.ObservationWrapper):
@@ -131,7 +106,7 @@ class VecPyTorch(gym.Wrapper):
 
     def step(self, action: torch.Tensor):
         action = action.detach().cpu().numpy()
-        obs, reward, done, info = self.venv.step(action)
+        obs, reward, done, truncated, info = self.venv.step(action)
         obs = torch.from_numpy(obs).float().to(self.device)
         reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
-        return obs, reward, done, info
+        return obs, reward, done, truncated, info

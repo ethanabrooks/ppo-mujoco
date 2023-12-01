@@ -48,10 +48,10 @@ def work(env: Env, command: Command, data):
     elif command == Command.RESET:
         return env.reset()
     elif command == Command.STEP:
-        s, r, t, i = env.step(data)
-        if t:
-            s = env.reset()
-        return s, r, t, i
+        s, r, d, t, i = env.step(data)
+        if d or t:
+            s, _ = env.reset()
+        return s, r, d, t, i
     raise RuntimeError(f"Unknown command {command}")
 
 
@@ -125,7 +125,8 @@ class SubprocVecEnv(gym.Env):
 
     def reset(self, n: Optional[int] = None) -> np.ndarray:
         if n is None:
-            return np.stack(self.send_to_all(Command.RESET, None))
+            observations, _ = zip(*self.send_to_all(Command.RESET, None))
+            return np.stack(observations)
         else:
             return self.send_to_nth(n, Command.RESET, None)
 
@@ -173,5 +174,13 @@ class SubprocVecEnv(gym.Env):
     def step(
         self, actions: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list]:
-        obs, rews, dones, infos = zip(*self.send_to_all(Command.STEP, actions))
-        return np.stack(obs), np.stack(rews), np.stack(dones), infos
+        obs, rews, dones, truncated, infos = zip(
+            *self.send_to_all(Command.STEP, actions)
+        )
+        return (
+            np.stack(obs),
+            np.stack(rews),
+            np.stack(dones),
+            np.stack(truncated),
+            infos,
+        )
