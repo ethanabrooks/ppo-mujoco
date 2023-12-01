@@ -51,9 +51,9 @@ def make_vec_envs(
     ]
 
     envs: SubprocVecEnv = (
-        SubprocVecEnv.make(envs)
-        if dummy_vec_env or len(envs) > 1
-        else DummyVecEnv.make(envs)
+        DummyVecEnv.make(envs)
+        if dummy_vec_env or len(envs) == 1
+        else SubprocVecEnv.make(envs)
     )
 
     if len(envs.observation_space.shape) == 1:
