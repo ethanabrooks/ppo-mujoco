@@ -108,5 +108,5 @@ class VecPyTorch(gym.Wrapper):
         action = action.detach().cpu().numpy()
         obs, reward, done, truncated, info = self.venv.step(action)
         obs = torch.from_numpy(obs).float().to(self.device)
-        reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
+        reward = torch.from_numpy(reward).float()
         return obs, reward, done, truncated, info

@@ -24,14 +24,14 @@ class FixedCategorical(torch.distributions.Categorical):
 
     def mode(self):
         probs: torch.Tensor = self.probs
-        return probs.argmax(dim=-1, keepdim=True)
+        return probs.argmax(dim=-1)
 
 
 # Normal
 class FixedNormal(torch.distributions.Normal):
     def log_probs(self, actions: torch.Tensor):
         log_prob: torch.Tensor = super().log_prob(actions)
-        return log_prob.sum(-1, keepdim=True)
+        return log_prob.sum(-1)
 
     def mode(self):
         return self.mean

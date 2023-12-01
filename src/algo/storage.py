@@ -22,10 +22,10 @@ class RolloutStorage(object):
         self.recurrent_hidden_states = torch.zeros(
             num_steps + 1, num_processes, recurrent_hidden_state_size
         )
-        self.rewards = torch.zeros(num_steps, num_processes, 1)
-        self.value_preds = torch.zeros(num_steps + 1, num_processes, 1)
-        self.returns = torch.zeros(num_steps + 1, num_processes, 1)
-        self.action_log_probs = torch.zeros(num_steps, num_processes, 1)
+        self.rewards = torch.zeros(num_steps, num_processes)
+        self.value_preds = torch.zeros(num_steps + 1, num_processes)
+        self.returns = torch.zeros(num_steps + 1, num_processes)
+        self.action_log_probs = torch.zeros(num_steps, num_processes)
         if action_space.__class__.__name__ == "Discrete":
             action_shape = 1
         else:
@@ -33,11 +33,11 @@ class RolloutStorage(object):
         self.actions = torch.zeros(num_steps, num_processes, action_shape)
         if action_space.__class__.__name__ == "Discrete":
             self.actions = self.actions.long()
-        self.masks = torch.ones(num_steps + 1, num_processes, 1)
+        self.masks = torch.ones(num_steps + 1, num_processes)
 
         # Masks that indicate whether it's a true terminal state
         # or time limit end state
-        self.bad_masks = torch.ones(num_steps + 1, num_processes, 1)
+        self.bad_masks = torch.ones(num_steps + 1, num_processes)
 
         self.num_steps = num_steps
         self.step = 0
@@ -161,14 +161,14 @@ class RolloutStorage(object):
                 -1, self.recurrent_hidden_states.size(-1)
             )[indices]
             actions_batch = self.actions.view(-1, self.actions.size(-1))[indices]
-            value_preds_batch = self.value_preds[:-1].view(-1, 1)[indices]
-            return_batch = self.returns[:-1].view(-1, 1)[indices]
-            masks_batch = self.masks[:-1].view(-1, 1)[indices]
-            old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices]
+            value_preds_batch = self.value_preds[:-1].view(-1)[indices]
+            return_batch = self.returns[:-1].view(-1)[indices]
+            masks_batch = self.masks[:-1].view(-1)[indices]
+            old_action_log_probs_batch = self.action_log_probs.view(-1)[indices]
             if advantages is None:
                 adv_targ = None
             else:
-                adv_targ = advantages.view(-1, 1)[indices]
+                adv_targ = advantages.view(-1)[indices]
 
             yield obs_batch, recurrent_hidden_states_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
 

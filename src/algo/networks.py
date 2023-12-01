@@ -131,8 +131,8 @@ class CNNBase(Network):
 
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
-
-        return self.critic_linear(x), x, rnn_hxs
+        values = self.critic_linear.forward(x).squeeze(-1)
+        return values, x, rnn_hxs
 
 
 class MLPBase(Network):
@@ -173,4 +173,5 @@ class MLPBase(Network):
         hidden_critic = self.critic(x)
         hidden_actor = self.actor(x)
 
-        return self.critic_linear(hidden_critic), hidden_actor, rnn_hxs
+        values = self.critic_linear.forward(hidden_critic).squeeze(-1)
+        return values, hidden_actor, rnn_hxs
