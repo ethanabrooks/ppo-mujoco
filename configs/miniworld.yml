@@ -1,4 +1,4 @@
-env_name: MiniWorld-OneRoomS6Fast-v0
+dummy_vec_env: true
 inherit_from: base
 num_processes: 1
 recurrent_policy: true
