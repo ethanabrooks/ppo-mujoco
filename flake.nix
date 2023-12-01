@@ -43,7 +43,7 @@
       };
     in {
       devShell = pkgs.mkShell {
-        LD_LIBRARY_PATH = with pkgs; "${libGL}/lib:${libGLU}/lib:${xorg.libX11}/lib";
+        LD_LIBRARY_PATH = with pkgs; "${libGL}/lib:${libGLU}/lib:${xorg.libX11}/lib:${freetype}/lib";
         PYTHONBREAKPOINT = "ipdb.set_trace";
         buildInputs = with pkgs; [
           myNixgl.nixGLNvidia
