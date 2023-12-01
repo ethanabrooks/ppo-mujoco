@@ -87,7 +87,7 @@ class RolloutStorage(object):
         use_gae: bool,
         gamma: float,
         gae_lambda: float,
-        use_proper_time_limits: bool = True,
+        use_proper_time_limits: bool,
     ):
         if use_proper_time_limits:
             if use_gae:

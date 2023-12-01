@@ -15,12 +15,10 @@ from envs.envs import make_vec_envs
 
 
 def train(
-    disable_gae: bool,
     disable_linear_lr_decay: bool,
-    disable_proper_time_limits: bool,
     dummy_vec_env: bool,
     env_name: str,
-    gae_lambda: float,
+    gae_args: dict,
     gamma: float,
     load_path: str,
     log_interval: int,
@@ -130,13 +128,7 @@ def train(
                 rollouts.masks[-1],
             ).detach()
 
-        rollouts.compute_returns(
-            next_value,
-            not disable_gae,
-            gamma,
-            gae_lambda,
-            not disable_proper_time_limits,
-        )
+        rollouts.compute_returns(next_value=next_value, gamma=gamma, **gae_args)
 
         value_loss, action_loss, dist_entropy = agent.update(
             optimizer=optimizer, rollouts=rollouts, **update_args
