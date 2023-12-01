@@ -37,7 +37,7 @@ def train(
     torch.manual_seed(seed)
 
     torch.set_num_threads(1)
-    device = torch.device("cpu")
+    device = torch.device("cuda")
 
     envs = make_vec_envs(
         device=device,
