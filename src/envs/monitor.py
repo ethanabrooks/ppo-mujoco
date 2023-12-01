@@ -100,7 +100,9 @@ class LoadMonitorResultsError(Exception):
 
 
 class ResultsWriter(object):
-    def __init__(self, filename, header="", extra_keys=()):
+    def __init__(
+        self, filename: str, header: str = "", extra_keys: tuple[str, ...] = ()
+    ):
         self.extra_keys = extra_keys
         assert filename is not None
         if not filename.endswith(Monitor.EXT):
@@ -167,5 +169,5 @@ def load_results(dir):
     df.sort_values("t", inplace=True)
     df.reset_index(inplace=True)
     df["t"] -= min(header["t_start"] for header in headers)
-    df.headers = headers  # HACK to preserve backwards compatibility
+    df["headers"] = headers  # HACK to preserve backwards compatibility
     return df

@@ -2,19 +2,7 @@ import torch
 import torch.nn as nn
 from torch.optim.optimizer import Optimizer
 
-from algo.envs import VecNormalize
-
-
-# Get a render function
-def get_render_func(venv):
-    if hasattr(venv, "envs"):
-        return venv.envs[0].render
-    elif hasattr(venv, "venv"):
-        return get_render_func(venv.venv)
-    elif hasattr(venv, "env"):
-        return get_render_func(venv.env)
-
-    return None
+from envs.envs import VecNormalize
 
 
 def get_vec_normalize(venv):

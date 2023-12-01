@@ -1,8 +1,8 @@
 import gym
 import numpy as np
 
-from external.running_mean_std import RunningMeanStd
-from external.vec_env.subproc_vec_env import SubprocVecEnv
+from envs.running_mean_std import RunningMeanStd
+from envs.subproc_vec_env import SubprocVecEnv
 
 
 class VecNormalize(gym.Wrapper):
@@ -30,6 +30,7 @@ class VecNormalize(gym.Wrapper):
         self.ret = np.zeros(self.venv.n_processes)
         self.gamma = gamma
         self.epsilon = epsilon
+        self.training = True
 
     def step(self, action: np.ndarray):
         obs, rews, news, infos = self.venv.step(action)
@@ -45,9 +46,10 @@ class VecNormalize(gym.Wrapper):
         self.ret[news] = 0.0
         return obs, rews, news, infos
 
-    def _obfilt(self, obs):
+    def _obfilt(self, obs, update=True):
         if self.ob_rms:
-            self.ob_rms.update(obs)
+            if self.training and update:
+                self.ob_rms.update(obs)
             obs = np.clip(
                 (obs - self.ob_rms.mean) / np.sqrt(self.ob_rms.var + self.epsilon),
                 -self.clipob,
@@ -61,3 +63,9 @@ class VecNormalize(gym.Wrapper):
         self.ret = np.zeros(self.venv.n_processes)
         obs = self.venv.reset()
         return self._obfilt(obs)
+
+    def train(self):
+        self.training = True
+
+    def eval(self):
+        self.training = False

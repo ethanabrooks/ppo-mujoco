@@ -1,10 +1,11 @@
 """
 Taken from https://github.com/openai/baselines
 """
+from dataclasses import dataclass
 from enum import Enum, auto
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
-from typing import Optional
+from typing import Callable, Optional
 
 import gym
 import numpy as np
@@ -71,23 +72,33 @@ def worker(
         remote.close()
 
 
+@dataclass
 class SubprocVecEnv(gym.Env):
+    n_processes: int
+    closed: bool
+    waiting: bool
+    remotes: list[Connection]
+    ps: list[Process]
     """
     VecEnv that runs multiple envs in parallel in subproceses and communicates with them via pipes.
     Recommended to use when num_envs > 1 and step() can be a bottleneck.
     """
 
-    def __init__(self, env_fns):
+    @classmethod
+    def make(cls, env_fns: Callable[[], Env]):
         """
         Arguments:
 
         env_fns: iterable of callables -  functions that create envs to run in subprocesses. Need to be cloud-pickleable
         """
-        self._n_processes = len(env_fns)
-        self.closed = False
-        self.waiting = False
-        self.remotes: list[Connection]
-        self.remotes, self.ps = self.start_processes(env_fns)
+        remotes, ps = cls.start_processes(env_fns)
+        return SubprocVecEnv(
+            n_processes=len(env_fns),
+            closed=False,
+            waiting=False,
+            remotes=remotes,
+            ps=ps,
+        )
 
     def _assert_not_closed(self):
         assert (
@@ -95,15 +106,11 @@ class SubprocVecEnv(gym.Env):
         ), "Trying to operate on a SubprocVecEnv after calling close()"
 
     @property
-    def action_space(self):
+    def action_space(self) -> gym.Space:
         return self.send_to_first(Command.ACTION_SPACE, None)
 
     @property
-    def n_processes(self):
-        return self._n_processes
-
-    @property
-    def observation_space(self):
+    def observation_space(self) -> gym.Space:
         return self.send_to_first(Command.OBSERVATION_SPACE, None)
 
     def close(self):
@@ -144,7 +151,10 @@ class SubprocVecEnv(gym.Env):
         remote.send((command, data))
         return remote.recv()
 
-    def start_processes(self, env_fns) -> tuple[list, list[Process]]:
+    @classmethod
+    def start_processes(cls, env_fns) -> tuple[list, list[Process]]:
+        remotes: list[Connection]
+        work_remotes: list[Connection]
         remotes, work_remotes = zip(*[Pipe() for _ in range(len(env_fns))])
         ps = [
             Process(

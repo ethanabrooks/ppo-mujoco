@@ -1,4 +1,3 @@
-import os
 import time
 from collections import deque
 from typing import Optional
@@ -8,13 +7,11 @@ import torch
 from torch.optim import Adam
 from wandb.sdk.wandb_run import Run
 
-import wandb
 from algo import utils
 from algo.agent import Agent
-from algo.envs import VecNormalize, make_vec_envs
 from algo.storage import RolloutStorage
 from algo.utils import get_vec_normalize
-from evaluation import evaluate
+from envs.envs import make_vec_envs
 
 
 def train(
@@ -23,7 +20,6 @@ def train(
     disable_proper_time_limits: bool,
     dummy_vec_env: bool,
     env_name: str,
-    eval_interval: int,
     gae_lambda: float,
     gamma: float,
     load_path: str,
@@ -35,8 +31,6 @@ def train(
     optim_args: dict,
     recurrent_policy: bool,
     run: Optional[Run],
-    save_dir: str,
-    save_interval: int,
     seed: int,
     update_args: dict,
 ):
@@ -54,16 +48,6 @@ def train(
         log_dir=None,
         num_processes=num_processes,
         seed=seed,
-    )
-    eval_envs = make_vec_envs(
-        allow_early_resets=True,
-        device=device,
-        dummy_vec_env=dummy_vec_env,
-        env_name=env_name,
-        gamma=None,
-        log_dir=None,
-        num_processes=num_processes,
-        seed=seed + num_processes,
     )
 
     agent = Agent(
@@ -124,7 +108,8 @@ def train(
             masks = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in done])
             bad_masks = torch.FloatTensor(
                 [[0.0] if "bad_transition" in info.keys() else [1.0] for info in infos]
-            )
+            )  # TODO: use truncated
+
             rollouts.insert(
                 obs=obs,
                 recurrent_hidden_states=recurrent_hidden_states,
@@ -157,17 +142,6 @@ def train(
 
         rollouts.after_update()
 
-        # save for every interval-th episode or for the last epoch
-        if (j % save_interval == 0 or j == num_updates - 1) and save_dir != "":
-            if run is not None:
-                savepath = os.path.join(run.dir, "agent.pt")
-                state_dict = agent.state_dict()
-                vec_normalize: Optional[VecNormalize] = utils.get_vec_normalize(envs)
-                if vec_normalize is not None:
-                    state_dict.update(obs_rms=vec_normalize.ob_rms)
-                torch.save(state_dict, savepath)
-                wandb.save(savepath)
-
         if j % log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (j + 1) * num_processes * num_steps
             end = time.time()
@@ -193,17 +167,3 @@ def train(
             )
             if run is not None:
                 run.log(log, step=total_num_steps)
-
-        if (
-            eval_interval is not None
-            and len(episode_rewards) > 1
-            and j % eval_interval == 0
-        ):
-            ob_rms = utils.get_vec_normalize(envs).ob_rms
-            evaluate(
-                agent=agent,
-                device=device,
-                eval_envs=eval_envs,
-                num_processes=num_processes,
-                ob_rms=ob_rms,
-            )

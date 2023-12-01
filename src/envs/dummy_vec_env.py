@@ -1,8 +1,9 @@
+from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from typing import Any
 
 from envs.base import Env
-from external.vec_env.subproc_vec_env import Command, SubprocVecEnv, work
+from envs.subproc_vec_env import Command, SubprocVecEnv, work
 
 
 class DummyRemote(Connection):
@@ -19,6 +20,7 @@ class DummyRemote(Connection):
             self.storage = work(self.env, cmd, data)
 
 
+@dataclass
 class DummyVecEnv(SubprocVecEnv):
     """
     Creates a simple vectorized wrapper for multiple environments, calling each environment in sequence on the current
@@ -32,5 +34,6 @@ class DummyVecEnv(SubprocVecEnv):
     :raises ValueError: If the same environment instance is passed as the output of two or more different env_fn.
     """
 
-    def start_processes(self, env_fns):
+    @classmethod
+    def start_processes(cls, env_fns):
         return [DummyRemote(fn()) for fn in env_fns], []

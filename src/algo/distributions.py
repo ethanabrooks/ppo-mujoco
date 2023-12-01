@@ -19,22 +19,19 @@ class FixedCategorical(torch.distributions.Categorical):
         return super().sample().unsqueeze(-1)
 
     def log_probs(self, actions: torch.Tensor):
-        return (
-            super()
-            .log_prob(actions.squeeze(-1))
-            .view(actions.size(0), -1)
-            .sum(-1)
-            .unsqueeze(-1)
-        )
+        log_prob: torch.Tensor = super().log_prob(actions.squeeze(-1))
+        return log_prob.view(actions.size(0), -1).sum(-1).unsqueeze(-1)
 
     def mode(self):
-        return self.probs.argmax(dim=-1, keepdim=True)
+        probs: torch.Tensor = self.probs
+        return probs.argmax(dim=-1, keepdim=True)
 
 
 # Normal
 class FixedNormal(torch.distributions.Normal):
     def log_probs(self, actions: torch.Tensor):
-        return super().log_prob(actions).sum(-1, keepdim=True)
+        log_prob: torch.Tensor = super().log_prob(actions)
+        return log_prob.sum(-1, keepdim=True)
 
     def mode(self):
         return self.mean
@@ -49,7 +46,8 @@ class FixedBernoulli(torch.distributions.Bernoulli):
         return super().entropy().sum(-1)
 
     def mode(self):
-        return torch.gt(self.probs, 0.5).float()
+        gt: torch.Tensor = torch.gt(self.probs, 0.5)
+        return gt.float()
 
 
 class Categorical(nn.Module):
@@ -79,14 +77,14 @@ class DiagGaussian(nn.Module):
         self.logstd = AddBias(torch.zeros(num_outputs))
 
     def forward(self, x: torch.Tensor):
-        action_mean = self.fc_mean(x)
+        action_mean: torch.Tensor = self.fc_mean(x)
 
         #  An ugly hack for my KFAC implementation.
         zeros = torch.zeros(action_mean.size())
         if x.is_cuda:
             zeros = zeros.cuda()
 
-        action_logstd = self.logstd(zeros)
+        action_logstd: torch.Tensor = self.logstd(zeros)
         return FixedNormal(action_mean, action_logstd.exp())
 
 

@@ -38,7 +38,7 @@ class StrikerEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def viewer_setup(self):
         self.viewer.cam.trackbodyid = 0  # noqa: Vulture
-        self.viewer.cam.distance = 4.0
+        self.viewer.cam.distance = 4.0  # noqa: Vulture
 
     def reset_model(self):
         self._min_strike_dist = np.inf

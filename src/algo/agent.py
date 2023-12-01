@@ -63,7 +63,7 @@ class Agent(nn.Module):
         deterministic: bool = False,
     ):
         value, actor_features, rnn_hxs = self.base.forward(inputs, rnn_hxs, masks)
-        dist = self.dist(actor_features)
+        dist = self.dist.forward(actor_features)
 
         if deterministic:
             action = dist.mode()
@@ -87,7 +87,7 @@ class Agent(nn.Module):
         action: torch.Tensor,
     ):
         value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
-        dist = self.dist(actor_features)
+        dist = self.dist.forward(actor_features)
 
         action_log_probs = dist.log_probs(action)
         dist_entropy = dist.entropy().mean()
@@ -148,16 +148,19 @@ class Agent(nn.Module):
                 action_loss = -torch.min(surr1, surr2).mean()
 
                 if use_clipped_value_loss:
-                    value_pred_clipped = value_preds_batch + (
-                        values - value_preds_batch
-                    ).clamp(-clip_param, clip_param)
-                    value_losses = (values - return_batch).pow(2)
+                    value_diff: torch.Tensor = values - value_preds_batch
+                    value_pred_clipped = value_preds_batch + value_diff.clamp(
+                        -clip_param, clip_param
+                    )
+                    value_losses: torch.Tensor = values - return_batch
+                    value_losses = value_losses.pow(2)
                     value_losses_clipped = (value_pred_clipped - return_batch).pow(2)
                     value_loss = (
                         0.5 * torch.max(value_losses, value_losses_clipped).mean()
                     )
                 else:
-                    value_loss = 0.5 * (return_batch - values).pow(2).mean()
+                    value_loss: torch.Tensor = return_batch - values
+                    value_loss = 0.5 * value_loss.pow(2).mean()
 
                 optimizer.zero_grad()
                 (
