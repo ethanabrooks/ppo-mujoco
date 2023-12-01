@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 
 import torch
@@ -7,7 +8,14 @@ from torch.optim import Optimizer
 
 from algo.distributions import Bernoulli, Categorical, DiagGaussian
 from algo.networks import CNNBase, MLPBase, Network
-from algo.storage import RolloutStorage
+from algo.storage import RolloutStorage, Sample
+
+
+@dataclass
+class ActMetadata:
+    log_probs: torch.Tensor
+    rnn_hxs: torch.Tensor
+    value: torch.Tensor
 
 
 class Agent(nn.Module):
@@ -61,7 +69,7 @@ class Agent(nn.Module):
         rnn_hxs: torch.Tensor,
         masks: torch.Tensor,
         deterministic: bool = False,
-    ):
+    ) -> tuple[torch.Tensor, ActMetadata]:
         value, actor_features, rnn_hxs = self.base.forward(inputs, rnn_hxs, masks)
         dist = self.dist.forward(actor_features)
 
@@ -71,7 +79,9 @@ class Agent(nn.Module):
             action = dist.sample()
 
         action_log_probs = dist.log_probs(action)
-        return value, action, action_log_probs, rnn_hxs
+        return action, ActMetadata(
+            log_probs=action_log_probs, rnn_hxs=rnn_hxs, value=value
+        )
 
     def get_value(
         self, inputs: torch.Tensor, rnn_hxs: torch.Tensor, masks: torch.Tensor
@@ -81,18 +91,20 @@ class Agent(nn.Module):
 
     def evaluate_actions(
         self,
-        inputs: torch.Tensor,
+        obs: torch.Tensor,
         rnn_hxs: torch.Tensor,
         masks: torch.Tensor,
         action: torch.Tensor,
     ):
-        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+        value, actor_features, rnn_hxs = self.base(obs, rnn_hxs, masks)
         dist = self.dist.forward(actor_features)
 
         action_log_probs = dist.log_probs(action)
         dist_entropy = dist.entropy().mean()
 
-        return value, action_log_probs, dist_entropy, rnn_hxs
+        return dist_entropy, ActMetadata(
+            log_probs=action_log_probs, rnn_hxs=rnn_hxs, value=value
+        )
 
     def update(
         self,
@@ -113,7 +125,7 @@ class Agent(nn.Module):
         action_loss_epoch = 0
         dist_entropy_epoch = 0
 
-        for e in range(ppo_epoch):
+        for _ in range(ppo_epoch):
             if self.is_recurrent:
                 data_generator = rollouts.recurrent_generator(
                     advantages, num_mini_batch
@@ -123,24 +135,20 @@ class Agent(nn.Module):
                     advantages, num_mini_batch
                 )
 
+            sample: Sample
             for sample in data_generator:
-                (
-                    obs_batch,
-                    recurrent_hidden_states_batch,
-                    actions_batch,
-                    value_preds_batch,
-                    return_batch,
-                    masks_batch,
-                    old_action_log_probs_batch,
-                    adv_targ,
-                ) = sample
-
                 # Reshape to do in a single forward pass for all steps
-                (values, action_log_probs, dist_entropy, _,) = self.evaluate_actions(
-                    obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch
+                dist_entropy, action_metadata = self.evaluate_actions(
+                    obs=sample.obs,
+                    rnn_hxs=sample.rnn_hxs,
+                    masks=sample.masks,
+                    action=sample.actions,
                 )
 
-                ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
+                ratio = torch.exp(
+                    action_metadata.log_probs - sample.old_action_log_probs
+                )
+                adv_targ = sample.adv_targets
                 surr1 = ratio * adv_targ
                 surr2 = (
                     torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * adv_targ
@@ -148,18 +156,21 @@ class Agent(nn.Module):
                 action_loss = -torch.min(surr1, surr2).mean()
 
                 if use_clipped_value_loss:
-                    value_diff: torch.Tensor = values - value_preds_batch
-                    value_pred_clipped = value_preds_batch + value_diff.clamp(
+                    values = action_metadata.value
+                    value_preds = sample.value_preds
+                    value_diff: torch.Tensor = values - value_preds
+                    value_pred_clipped = value_preds + value_diff.clamp(
                         -clip_param, clip_param
                     )
-                    value_losses: torch.Tensor = values - return_batch
+                    returns = sample.returns
+                    value_losses: torch.Tensor = values - returns
                     value_losses = value_losses.pow(2)
-                    value_losses_clipped = (value_pred_clipped - return_batch).pow(2)
+                    value_losses_clipped = (value_pred_clipped - returns).pow(2)
                     value_loss = (
                         0.5 * torch.max(value_losses, value_losses_clipped).mean()
                     )
                 else:
-                    value_loss: torch.Tensor = return_batch - values
+                    value_loss: torch.Tensor = returns - values
                     value_loss = 0.5 * value_loss.pow(2).mean()
 
                 optimizer.zero_grad()

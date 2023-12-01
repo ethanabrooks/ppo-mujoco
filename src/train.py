@@ -1,5 +1,6 @@
 import time
 from collections import deque
+from dataclasses import asdict
 from typing import Optional
 
 import numpy as np
@@ -92,7 +93,7 @@ def train(
         for step in range(num_steps):
             # Sample actions
             with torch.no_grad():
-                (value, action, action_log_prob, recurrent_hidden_states,) = agent.act(
+                action, action_metadata = agent.act(
                     inputs=rollouts.obs[step],
                     rnn_hxs=rollouts.recurrent_hidden_states[step],
                     masks=rollouts.masks[step],
@@ -112,13 +113,11 @@ def train(
 
             rollouts.insert(
                 obs=obs,
-                recurrent_hidden_states=recurrent_hidden_states,
                 actions=action,
-                action_log_probs=action_log_prob,
-                value_preds=value,
                 rewards=reward,
                 masks=masks,
                 bad_masks=bad_masks,
+                **asdict(action_metadata)
             )
 
         with torch.no_grad():
