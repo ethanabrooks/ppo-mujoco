@@ -1,8 +1,8 @@
 import gym
 import numpy as np
 
-from envs.running_mean_std import RunningMeanStd
-from envs.subproc_vec_env import SubprocVecEnv
+from ppo.envs.running_mean_std import RunningMeanStd
+from ppo.envs.subproc_vec_env import SubprocVecEnv
 
 
 class VecNormalize(gym.Wrapper):

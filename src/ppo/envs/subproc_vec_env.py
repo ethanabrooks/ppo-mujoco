@@ -10,7 +10,7 @@ from typing import Callable, Optional
 import gym
 import numpy as np
 
-from envs.base import Env
+from ppo.envs.base import Env
 
 
 class CloudpickleWrapper(object):

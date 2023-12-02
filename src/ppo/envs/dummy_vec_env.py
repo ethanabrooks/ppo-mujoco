@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from typing import Any
 
-from envs.base import Env
-from envs.subproc_vec_env import Command, SubprocVecEnv, work
+from ppo.envs.base import Env
+from ppo.envs.subproc_vec_env import Command, SubprocVecEnv, work
 
 
 class DummyRemote(Connection):

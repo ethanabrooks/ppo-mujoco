@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from algo.utils import init
+from ppo.utils import init
 
 
 class Flatten(nn.Module):

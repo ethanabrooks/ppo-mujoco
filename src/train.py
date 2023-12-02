@@ -8,11 +8,11 @@ import torch
 from torch.optim import Adam
 from wandb.sdk.wandb_run import Run
 
-from algo import utils
-from algo.agent import Agent
-from algo.storage import RolloutStorage
-from algo.utils import get_vec_normalize
-from envs.envs import make_vec_envs
+from ppo import utils
+from ppo.agent import Agent
+from ppo.envs.envs import make_vec_envs
+from ppo.storage import RolloutStorage
+from ppo.utils import get_vec_normalize
 
 
 def train(

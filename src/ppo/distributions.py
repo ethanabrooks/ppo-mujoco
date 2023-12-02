@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from algo.utils import AddBias, init
+from ppo.utils import AddBias, init
 
 """
 Modify standard PyTorch distributions so they are compatible with this code.

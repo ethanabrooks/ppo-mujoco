@@ -5,10 +5,10 @@ import pyglet
 import torch
 from gymnasium.spaces.box import Box
 
-from envs.dummy_vec_env import DummyVecEnv
-from envs.monitor import Monitor
-from envs.subproc_vec_env import SubprocVecEnv
-from envs.vec_normalize import VecNormalize
+from ppo.envs.dummy_vec_env import DummyVecEnv
+from ppo.envs.monitor import Monitor
+from ppo.envs.subproc_vec_env import SubprocVecEnv
+from ppo.envs.vec_normalize import VecNormalize
 
 pyglet.options["headless"] = True
 

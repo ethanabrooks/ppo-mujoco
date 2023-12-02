@@ -6,9 +6,9 @@ import torch.nn as nn
 from gym import Space
 from torch.optim import Optimizer
 
-from algo.distributions import Bernoulli, Categorical, DiagGaussian
-from algo.networks import CNNBase, MLPBase, Network
-from algo.storage import RolloutStorage, Sample
+from ppo.distributions import Bernoulli, Categorical, DiagGaussian
+from ppo.networks import CNNBase, MLPBase, Network
+from ppo.storage import RolloutStorage, Sample
 
 
 @dataclass
