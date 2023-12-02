@@ -35,6 +35,8 @@ def train(
     update_args: dict,
 ):
     torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True  # noqa: Vulture
+    torch.backends.cudnn.benchmark = False  # noqa: Vulture
 
     torch.set_num_threads(1)
     device = torch.device("cuda")
